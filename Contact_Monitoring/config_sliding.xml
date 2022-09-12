@@ -1,0 +1,163 @@
+<config>
+    <contact>
+        <group> 10 </group>
+        <voltageLow> 1.000 </voltageLow>
+        <voltageHigh> 1.300 </voltageHigh>
+        <voltageLow> 1.300 </voltageLow>
+        <voltageHigh> 2.850 </voltageHigh>
+
+        <voltageLow> 2.850 </voltageLow>
+        <voltageHigh> 3.150 </voltageHigh>
+	<voltageLow> 3.150 </voltageLow>
+        <voltageHigh> 5.500 </voltageHigh>
+
+        <voltageLow> 5.500 </voltageLow>
+        <voltageHigh> 5.900 </voltageHigh>
+        <voltageLow> 5.900 </voltageLow>
+        <voltageHigh> 7.250 </voltageHigh>
+
+        <voltageLow> 7.250 </voltageLow>
+        <voltageHigh> 7.550 </voltageHigh>
+        <voltageLow> 7.550 </voltageLow>
+        <voltageHigh> 12.00 </voltageHigh>
+
+	<voltageLow> 12.000 </voltageLow>
+        <voltageHigh> 13.500 </voltageHigh>
+        <pin> 54 </pin>
+    </contact>
+
+    <contact>
+        <group> 20 </group>
+        <voltageLow> 1.000 </voltageLow>
+        <voltageHigh> 1.300 </voltageHigh>
+        <voltageLow> 1.300 </voltageLow>
+        <voltageHigh> 2.850 </voltageHigh>
+
+        <voltageLow> 2.850 </voltageLow>
+        <voltageHigh> 3.150 </voltageHigh>
+	<voltageLow> 3.150 </voltageLow>
+        <voltageHigh> 5.500 </voltageHigh>
+
+        <voltageLow> 5.500 </voltageLow>
+        <voltageHigh> 5.900 </voltageHigh>
+        <voltageLow> 5.900 </voltageLow>
+        <voltageHigh> 7.250 </voltageHigh>
+
+        <voltageLow> 7.250 </voltageLow>
+        <voltageHigh> 7.550 </voltageHigh>
+        <voltageLow> 7.550 </voltageLow>
+        <voltageHigh> 12.00 </voltageHigh>
+
+	<voltageLow> 12.000 </voltageLow>
+        <voltageHigh> 13.500 </voltageHigh>
+        <pin> 55 </pin>
+    </contact>
+
+    <contact>
+        <group> 30 </group>
+        <voltageLow> 1.000 </voltageLow>
+        <voltageHigh> 1.300 </voltageHigh>
+        <voltageLow> 1.300 </voltageLow>
+        <voltageHigh> 2.850 </voltageHigh>
+
+        <voltageLow> 2.850 </voltageLow>
+        <voltageHigh> 3.150 </voltageHigh>
+	<voltageLow> 3.150 </voltageLow>
+        <voltageHigh> 5.500 </voltageHigh>
+
+        <voltageLow> 5.500 </voltageLow>
+        <voltageHigh> 5.900 </voltageHigh>
+        <voltageLow> 5.900 </voltageLow>
+        <voltageHigh> 7.250 </voltageHigh>
+
+        <voltageLow> 7.250 </voltageLow>
+        <voltageHigh> 7.550 </voltageHigh>
+        <voltageLow> 7.550 </voltageLow>
+        <voltageHigh> 12.00 </voltageHigh>
+
+	<voltageLow> 12.000 </voltageLow>
+        <voltageHigh> 13.500 </voltageHigh>
+        <pin> 56 </pin>
+    </contact>
+
+    <contact>
+        <group> 40 </group>
+        <voltageLow> 1.000 </voltageLow>
+        <voltageHigh> 1.300 </voltageHigh>
+        <voltageLow> 1.300 </voltageLow>
+        <voltageHigh> 2.850 </voltageHigh>
+
+        <voltageLow> 2.850 </voltageLow>
+        <voltageHigh> 3.150 </voltageHigh>
+	<voltageLow> 3.150 </voltageLow>
+        <voltageHigh> 5.500 </voltageHigh>
+
+        <voltageLow> 5.500 </voltageLow>
+        <voltageHigh> 5.900 </voltageHigh>
+        <voltageLow> 5.900 </voltageLow>
+        <voltageHigh> 7.250 </voltageHigh>
+
+        <voltageLow> 7.250 </voltageLow>
+        <voltageHigh> 7.550 </voltageHigh>
+        <voltageLow> 7.550 </voltageLow>
+        <voltageHigh> 12.00 </voltageHigh>
+
+	<voltageLow> 12.000 </voltageLow>
+        <voltageHigh> 13.500 </voltageHigh>
+        <pin> 57 </pin>
+    </contact>
+
+    <contact>
+        <group> 50 </group>
+        <voltageLow> 1.000 </voltageLow>
+        <voltageHigh> 1.300 </voltageHigh>
+        <voltageLow> 1.300 </voltageLow>
+        <voltageHigh> 2.850 </voltageHigh>
+
+        <voltageLow> 2.850 </voltageLow>
+        <voltageHigh> 3.150 </voltageHigh>
+	<voltageLow> 3.150 </voltageLow>
+        <voltageHigh> 5.500 </voltageHigh>
+
+        <voltageLow> 5.500 </voltageLow>
+        <voltageHigh> 5.900 </voltageHigh>
+        <voltageLow> 5.900 </voltageLow>
+        <voltageHigh> 7.250 </voltageHigh>
+
+        <voltageLow> 7.250 </voltageLow>
+        <voltageHigh> 7.550 </voltageHigh>
+        <voltageLow> 7.550 </voltageLow>
+        <voltageHigh> 12.00 </voltageHigh>
+
+	<voltageLow> 12.000 </voltageLow>
+        <voltageHigh> 13.500 </voltageHigh>
+        <pin> 58 </pin>
+    </contact>
+
+    <contact>
+        <group> 60 </group>
+        <voltageLow> 1.000 </voltageLow>
+        <voltageHigh> 1.300 </voltageHigh>
+        <voltageLow> 1.300 </voltageLow>
+        <voltageHigh> 2.850 </voltageHigh>
+
+        <voltageLow> 2.850 </voltageLow>
+        <voltageHigh> 3.150 </voltageHigh>
+	<voltageLow> 3.150 </voltageLow>
+        <voltageHigh> 5.500 </voltageHigh>
+
+        <voltageLow> 5.500 </voltageLow>
+        <voltageHigh> 5.900 </voltageHigh>
+        <voltageLow> 5.900 </voltageLow>
+        <voltageHigh> 7.250 </voltageHigh>
+
+        <voltageLow> 7.250 </voltageLow>
+        <voltageHigh> 7.550 </voltageHigh>
+        <voltageLow> 7.550 </voltageLow>
+        <voltageHigh> 12.00 </voltageHigh>
+
+	<voltageLow> 12.000 </voltageLow>
+        <voltageHigh> 13.500 </voltageHigh>
+        <pin> 59 </pin>
+    </contact>
+</config>
