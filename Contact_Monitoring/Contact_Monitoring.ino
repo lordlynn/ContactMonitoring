@@ -17,10 +17,10 @@
 #define INCH_MAX 16                                                         // Maximum number of ADC input channels
 
 /******************** Configurations ********************************/      
-#define FILE_NAME_TEMPLATE "test"                                           // Name stem for output files. A number will be added to the end of the name to create uniue filenames
+#define FILE_NAME_TEMPLATE "HPBTest"                                        // Name stem for output files. A number will be added to the end of the name to create uniue filenames
 #define FILE_LIMIT 75                                                       // Maximum number of files that are allowed to be created
 #define WRITE_LIMIT 1040000                                                 // Determines the maximum number of rows the output excel file will be. 10485760 is the excel max number of rows
-#define V_SCALE 13.13                                                       // Voltage scaling factor. If input to ADC is 5v use 5.0. If a voltage divider is used put the scaling factor here
+#define V_SCALE 5.000                                                       // Voltage scaling factor. If input to ADC is 5v use 5.0. If a voltage divider is used put the scaling factor here
 #define SAMPLE_PERIOD 5                                                     // Desired time in ms between samples
 uint32_t BYTE_LIMIT = 1000000 * 150;                                        // Max file size in bytes. FAT32 allows a max of 4gb so should always be less than that.
 /********************************************************************/

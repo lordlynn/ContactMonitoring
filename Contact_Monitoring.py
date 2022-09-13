@@ -20,7 +20,7 @@ FLOAT_TO_LONG = 10000000                                                        
 IN_FILENAME = "TEST"                                                            # Name of input file stem to read from
 OUT_FILENAME = "output"                                                         # Name stem to give to the output csv file
 GROUPS = None                                                                   # List of group IDs to decode data for
-
+DIGITAL = None                                                                  # List of contact IDs for digital contacts. Digital contacts have 3 states 1 being closed, 2 being transition, and 3 being open.
 refined_data = []                                                               # Stores the data as a 1D list of dictionaries  
 data = []                                                                       # Stores the data seperated by contact ID 
 in_file_count = 1
@@ -564,101 +564,168 @@ def timing_analysis(out_filename, check_time=7, press_debounce=5, unpress_deboun
                 if (len(data[contact + shift]) - 1 < adjusted_index):                               # Handles index errors from the contacts having different numbers of samples recorded 
                     continue
               
-                if (data[contact + shift][adjusted_index][3] == low_out):
-                    low_out_count_cur[contact + shift] += 1
 
-                    # update total counts and reset current counts
-                    undefined_count_total[contact + shift] += undefined_count_cur[contact + shift]
-                    pressed_count_total[contact + shift] += pressed_count_cur[contact + shift]
-                    transition_count_total[contact + shift] += transition_count_cur[contact + shift]
-                    unpressed_count_total[contact + shift] += unpressed_count_cur[contact + shift]
-                    high_out_count_total[contact + shift] += high_out_count_cur[contact + shift]
+                if (data[contact + shift][adjusted_index][0] in DIGITAL):                           # If the contact has been flagged as digital
+                    if (data[contact + shift][adjusted_index][3] == 1):                             # State 1=press for digital contacts
+                        pressed_count_cur[contact + shift] += 1
 
-                    undefined_count_cur[contact + shift] = 0
-                    pressed_count_cur[contact + shift] = 0
-                    transition_count_cur[contact + shift] = 0
-                    unpressed_count_cur[contact + shift] = 0
-                    high_out_count_cur[contact + shift] = 0
+                        # update total counts and reset current counts
+                        undefined_count_total[contact + shift] += undefined_count_cur[contact + shift]
+                        low_out_count_total[contact + shift] += low_out_count_cur[contact + shift]
+                        transition_count_total[contact + shift] += transition_count_cur[contact + shift]
+                        unpressed_count_total[contact + shift] += unpressed_count_cur[contact + shift]
+                        high_out_count_total[contact + shift] += high_out_count_cur[contact + shift]
+
+                        undefined_count_cur[contact + shift] = 0
+                        low_out_count_cur[contact + shift] = 0
+                        transition_count_cur[contact + shift] = 0
+                        unpressed_count_cur[contact + shift] = 0
+                        high_out_count_cur[contact + shift] = 0
+
+                    elif (data[contact + shift][adjusted_index][3] == 2):                           # State 2=transition for digital contacts
+                        transition_count_cur[contact + shift] += 1
+                        
+                        # update total counts and reset current counts
+                        undefined_count_total[contact + shift] += undefined_count_cur[contact + shift]
+                        low_out_count_total[contact + shift] += low_out_count_cur[contact + shift]
+                        pressed_count_total[contact + shift] += pressed_count_cur[contact + shift]
+                        unpressed_count_total[contact + shift] += unpressed_count_cur[contact + shift]
+                        high_out_count_total[contact + shift] += high_out_count_cur[contact + shift]
+
+                        undefined_count_cur[contact + shift] = 0
+                        low_out_count_cur[contact + shift] = 0
+                        pressed_count_cur[contact + shift] = 0
+                        unpressed_count_cur[contact + shift] = 0
+                        high_out_count_cur[contact + shift] = 0
                     
-                elif (data[contact + shift][adjusted_index][3] == pressed):
-                    pressed_count_cur[contact + shift] += 1
+                    elif (data[contact + shift][adjusted_index][3] == 3):                   # State 3=unpress for digital contacts
+                        unpressed_count_cur[contact + shift] += 1
+                        
+                        # update total counts and reset current counts
+                        undefined_count_total[contact + shift] += undefined_count_cur[contact + shift]
+                        low_out_count_total[contact + shift] += low_out_count_cur[contact + shift]
+                        pressed_count_total[contact + shift] += pressed_count_cur[contact + shift]
+                        transition_count_total[contact + shift] += transition_count_cur[contact + shift]
+                        high_out_count_total[contact + shift] += high_out_count_cur[contact + shift]
 
-                    # update total counts and reset current counts
-                    undefined_count_total[contact + shift] += undefined_count_cur[contact + shift]
-                    low_out_count_total[contact + shift] += low_out_count_cur[contact + shift]
-                    transition_count_total[contact + shift] += transition_count_cur[contact + shift]
-                    unpressed_count_total[contact + shift] += unpressed_count_cur[contact + shift]
-                    high_out_count_total[contact + shift] += high_out_count_cur[contact + shift]
-
-                    undefined_count_cur[contact + shift] = 0
-                    low_out_count_cur[contact + shift] = 0
-                    transition_count_cur[contact + shift] = 0
-                    unpressed_count_cur[contact + shift] = 0
-                    high_out_count_cur[contact + shift] = 0
-
-                elif (data[contact + shift][adjusted_index][3] == transition):
-                    transition_count_cur[contact + shift] += 1
+                        undefined_count_cur[contact + shift] = 0
+                        low_out_count_cur[contact + shift] = 0
+                        pressed_count_cur[contact + shift] = 0
+                        transition_count_cur[contact + shift] = 0
+                        high_out_count_cur[contact + shift] = 0
                     
-                    # update total counts and reset current counts
-                    undefined_count_total[contact + shift] += undefined_count_cur[contact + shift]
-                    low_out_count_total[contact + shift] += low_out_count_cur[contact + shift]
-                    pressed_count_total[contact + shift] += pressed_count_cur[contact + shift]
-                    unpressed_count_total[contact + shift] += unpressed_count_cur[contact + shift]
-                    high_out_count_total[contact + shift] += high_out_count_cur[contact + shift]
+                    elif (data[contact + shift][adjusted_index][3] == undefined):                   # Undefined states will be 0 for both digital and analog contacts 
+                        undefined_count_cur[contact + shift] += 1
+                        
+                        # update total counts and reset current counts
+                        low_out_count_total[contact + shift] += low_out_count_cur[contact + shift]
+                        pressed_count_total[contact + shift] += pressed_count_cur[contact + shift]
+                        transition_count_total[contact + shift] += transition_count_cur[contact + shift]
+                        unpressed_count_total[contact + shift] += unpressed_count_cur[contact + shift]
+                        high_out_count_total[contact + shift] += high_out_count_cur[contact + shift]
 
-                    undefined_count_cur[contact + shift] = 0
-                    low_out_count_cur[contact + shift] = 0
-                    pressed_count_cur[contact + shift] = 0
-                    unpressed_count_cur[contact + shift] = 0
-                    high_out_count_cur[contact + shift] = 0
+                        low_out_count_cur[contact + shift] = 0
+                        pressed_count_cur[contact + shift] = 0
+                        transition_count_cur[contact + shift] = 0
+                        unpressed_count_cur[contact + shift] = 0
+                        high_out_count_cur[contact + shift] = 0
                 
-                elif (data[contact + shift][adjusted_index][3] == unpressed):
-                    unpressed_count_cur[contact + shift] += 1
-                    
-                    # update total counts and reset current counts
-                    undefined_count_total[contact + shift] += undefined_count_cur[contact + shift]
-                    low_out_count_total[contact + shift] += low_out_count_cur[contact + shift]
-                    pressed_count_total[contact + shift] += pressed_count_cur[contact + shift]
-                    transition_count_total[contact + shift] += transition_count_cur[contact + shift]
-                    high_out_count_total[contact + shift] += high_out_count_cur[contact + shift]
+                else:                                                                               # If the contacts are analog
+                    if (data[contact + shift][adjusted_index][3] == low_out):
+                        low_out_count_cur[contact + shift] += 1
 
-                    undefined_count_cur[contact + shift] = 0
-                    low_out_count_cur[contact + shift] = 0
-                    pressed_count_cur[contact + shift] = 0
-                    transition_count_cur[contact + shift] = 0
-                    high_out_count_cur[contact + shift] = 0
-                
-                elif (data[contact + shift][adjusted_index][3] == high_out):
-                    high_out_count_cur[contact + shift] += 1
-                    
-                    # update total counts and reset current counts
-                    undefined_count_total[contact + shift] += undefined_count_cur[contact + shift]
-                    low_out_count_total[contact + shift] += low_out_count_cur[contact + shift]
-                    pressed_count_total[contact + shift] += pressed_count_cur[contact + shift]
-                    transition_count_total[contact + shift] += transition_count_cur[contact + shift]
-                    unpressed_count_total[contact + shift] += unpressed_count_cur[contact + shift]
+                        # update total counts and reset current counts
+                        undefined_count_total[contact + shift] += undefined_count_cur[contact + shift]
+                        pressed_count_total[contact + shift] += pressed_count_cur[contact + shift]
+                        transition_count_total[contact + shift] += transition_count_cur[contact + shift]
+                        unpressed_count_total[contact + shift] += unpressed_count_cur[contact + shift]
+                        high_out_count_total[contact + shift] += high_out_count_cur[contact + shift]
 
-                    undefined_count_cur[contact + shift] = 0
-                    low_out_count_cur[contact + shift] = 0
-                    pressed_count_cur[contact + shift] = 0
-                    transition_count_cur[contact + shift] = 0
-                    unpressed_count_cur[contact + shift] = 0
-                
-                elif (data[contact + shift][adjusted_index][3] == undefined):
-                    undefined_count_cur[contact + shift] += 1
-                    
-                    # update total counts and reset current counts
-                    low_out_count_total[contact + shift] += low_out_count_cur[contact + shift]
-                    pressed_count_total[contact + shift] += pressed_count_cur[contact + shift]
-                    transition_count_total[contact + shift] += transition_count_cur[contact + shift]
-                    unpressed_count_total[contact + shift] += unpressed_count_cur[contact + shift]
-                    high_out_count_total[contact + shift] += high_out_count_cur[contact + shift]
+                        undefined_count_cur[contact + shift] = 0
+                        pressed_count_cur[contact + shift] = 0
+                        transition_count_cur[contact + shift] = 0
+                        unpressed_count_cur[contact + shift] = 0
+                        high_out_count_cur[contact + shift] = 0
+                        
+                    elif (data[contact + shift][adjusted_index][3] == pressed):
+                        pressed_count_cur[contact + shift] += 1
 
-                    low_out_count_cur[contact + shift] = 0
-                    pressed_count_cur[contact + shift] = 0
-                    transition_count_cur[contact + shift] = 0
-                    unpressed_count_cur[contact + shift] = 0
-                    high_out_count_cur[contact + shift] = 0            
+                        # update total counts and reset current counts
+                        undefined_count_total[contact + shift] += undefined_count_cur[contact + shift]
+                        low_out_count_total[contact + shift] += low_out_count_cur[contact + shift]
+                        transition_count_total[contact + shift] += transition_count_cur[contact + shift]
+                        unpressed_count_total[contact + shift] += unpressed_count_cur[contact + shift]
+                        high_out_count_total[contact + shift] += high_out_count_cur[contact + shift]
+
+                        undefined_count_cur[contact + shift] = 0
+                        low_out_count_cur[contact + shift] = 0
+                        transition_count_cur[contact + shift] = 0
+                        unpressed_count_cur[contact + shift] = 0
+                        high_out_count_cur[contact + shift] = 0
+
+                    elif (data[contact + shift][adjusted_index][3] == transition):
+                        transition_count_cur[contact + shift] += 1
+                        
+                        # update total counts and reset current counts
+                        undefined_count_total[contact + shift] += undefined_count_cur[contact + shift]
+                        low_out_count_total[contact + shift] += low_out_count_cur[contact + shift]
+                        pressed_count_total[contact + shift] += pressed_count_cur[contact + shift]
+                        unpressed_count_total[contact + shift] += unpressed_count_cur[contact + shift]
+                        high_out_count_total[contact + shift] += high_out_count_cur[contact + shift]
+
+                        undefined_count_cur[contact + shift] = 0
+                        low_out_count_cur[contact + shift] = 0
+                        pressed_count_cur[contact + shift] = 0
+                        unpressed_count_cur[contact + shift] = 0
+                        high_out_count_cur[contact + shift] = 0
+                    
+                    elif (data[contact + shift][adjusted_index][3] == unpressed):
+                        unpressed_count_cur[contact + shift] += 1
+                        
+                        # update total counts and reset current counts
+                        undefined_count_total[contact + shift] += undefined_count_cur[contact + shift]
+                        low_out_count_total[contact + shift] += low_out_count_cur[contact + shift]
+                        pressed_count_total[contact + shift] += pressed_count_cur[contact + shift]
+                        transition_count_total[contact + shift] += transition_count_cur[contact + shift]
+                        high_out_count_total[contact + shift] += high_out_count_cur[contact + shift]
+
+                        undefined_count_cur[contact + shift] = 0
+                        low_out_count_cur[contact + shift] = 0
+                        pressed_count_cur[contact + shift] = 0
+                        transition_count_cur[contact + shift] = 0
+                        high_out_count_cur[contact + shift] = 0
+                    
+                    elif (data[contact + shift][adjusted_index][3] == high_out):
+                        high_out_count_cur[contact + shift] += 1
+                        
+                        # update total counts and reset current counts
+                        undefined_count_total[contact + shift] += undefined_count_cur[contact + shift]
+                        low_out_count_total[contact + shift] += low_out_count_cur[contact + shift]
+                        pressed_count_total[contact + shift] += pressed_count_cur[contact + shift]
+                        transition_count_total[contact + shift] += transition_count_cur[contact + shift]
+                        unpressed_count_total[contact + shift] += unpressed_count_cur[contact + shift]
+
+                        undefined_count_cur[contact + shift] = 0
+                        low_out_count_cur[contact + shift] = 0
+                        pressed_count_cur[contact + shift] = 0
+                        transition_count_cur[contact + shift] = 0
+                        unpressed_count_cur[contact + shift] = 0
+                    
+                    elif (data[contact + shift][adjusted_index][3] == undefined):
+                        undefined_count_cur[contact + shift] += 1
+                        
+                        # update total counts and reset current counts
+                        low_out_count_total[contact + shift] += low_out_count_cur[contact + shift]
+                        pressed_count_total[contact + shift] += pressed_count_cur[contact + shift]
+                        transition_count_total[contact + shift] += transition_count_cur[contact + shift]
+                        unpressed_count_total[contact + shift] += unpressed_count_cur[contact + shift]
+                        high_out_count_total[contact + shift] += high_out_count_cur[contact + shift]
+
+                        low_out_count_cur[contact + shift] = 0
+                        pressed_count_cur[contact + shift] = 0
+                        transition_count_cur[contact + shift] = 0
+                        unpressed_count_cur[contact + shift] = 0
+                        high_out_count_cur[contact + shift] = 0            
 
             pressed_flag = 0
             unpressed_flag = 0
@@ -666,13 +733,13 @@ def timing_analysis(out_filename, check_time=7, press_debounce=5, unpress_deboun
 
             # Check state_count_cur lists to debounce pressed and unpressed states
             for i in range(group_len):
-                if (pressed_count_cur[i + shift] >= press_debounce):                          # If the contact has been in the pressed sate consecutively for "press_debounce_limit" iterations
+                if (pressed_count_cur[i + shift] >= press_debounce):                                # If the contact has been in the pressed sate consecutively for "press_debounce_limit" iterations
                     pressed_flag += 1
                     if (timeout_press_flag[group] == True):                                         # Save the index at which a contact was first press debounced to check that all contacts close within "timeout_limit" iterations
                         timeout_press_counter[group] = adjusted_index
                         timeout_press_flag[group] = False
 
-                elif (unpressed_count_cur[i + shift] >= unpress_debounce):                    # If the contact has been in the unpressed sate consecutively for "press_debounce_limit" iterations
+                elif (unpressed_count_cur[i + shift] >= unpress_debounce):                          # If the contact has been in the unpressed sate consecutively for "press_debounce_limit" iterations
                     unpressed_flag += 1
                     if (timeout_unpress_flag[group] == True):                                       # Save the index at which a contact was first unpress debounced to check that all contacts open within "timeout_limit" iterations
                         timeout_unpress_counter[group] = adjusted_index
@@ -723,7 +790,7 @@ def timing_analysis(out_filename, check_time=7, press_debounce=5, unpress_deboun
             unpressed_count_total[contact + shift] += unpressed_count_cur[contact + shift]
             high_out_count_total[contact + shift] += high_out_count_cur[contact + shift]
         shift += len(GROUPS[group])
-
+    print("good press: " + str(good_press) + "\nbad press: " + str(bad_press))
     save_timing_summary(out_filename, undefined_count_total, low_out_count_total, pressed_count_total,
                         transition_count_total, unpressed_count_total, high_out_count_total,
                         good_press, bad_press, good_unpress, bad_unpress, bad_press_locations, 
@@ -762,7 +829,7 @@ def usage():
     print("\t\t\tpress_debounce - the number of consecutive measurements in press state required for debounce,")
     print("\t\t\tunpress_debounce - the number of consecutive measurements in unpress state required for debounce,")
     print("\t\t\ttimeout - if all contacts in a group do not enter the press or unpress state together within this time then it is marked as bad")
-    print("\t\t\tThe function parameters should be entered as a string wit commas seperating the parameters.")
+    print("\t\t\tThe function parameters should be entered as a string with commas separating the parameters.")
     print("\t\t\tExample: -t \"7, 5, 5, 30\"\tor -t")
     exit()
 
@@ -781,10 +848,12 @@ def usage():
 #                       a child is ready to be terminated
 #        (bool) flag - True perform analysis, False do not analyze  
 #        (int[]) args - List of arguments to pass to timing_analysis()
+#        (int[]) digital - List of contact IDs for digital contacts
 # return: void
 #-----------------------------------------------------------------------
-def convert_file(in_filename, out_filename, groups, q, flag, args):
-    global GROUPS
+def convert_file(in_filename, out_filename, groups, q, flag, args, digital):
+    global GROUPS, DIGITAL
+    DIGITAL = digital
     GROUPS = groups
     read_file(in_filename)
        
@@ -795,10 +864,10 @@ def convert_file(in_filename, out_filename, groups, q, flag, args):
     write_to_csv(out_filename)
 
     if (flag): 
-        if (len(args) == 4):
-            timing_analysis(out_filename, args[0], args[1], args[2], args[3])
-        else:
-            timing_analysis(out_filename)
+        # if (len(args) == 4):
+        #     timing_analysis(out_filename, args[0], args[1], args[2], args[3])
+        # else:
+        timing_analysis(out_filename)
     while True:
         q.put(1)
         time.sleep(0.5)
@@ -813,63 +882,65 @@ def convert_file(in_filename, out_filename, groups, q, flag, args):
 # return: void
 #-----------------------------------------------------------------------
 def main():
-    global OUT_FILENAME, IN_FILENAME, GROUPS
+    global OUT_FILENAME, IN_FILENAME, GROUPS, DIGITAL
     global raw_data, refined_data, data, in_file_count, in_file_list
     timing_analysis_flag = False
     process_limit = 2                                                           # default limit for how many files can be parallelized at a time. letting limit go to inf slows execution drastically due to memory and cpu usage
     timing_args = None
-    try:
-        opts, args = getopt.getopt(sys.argv[1:], "ho:i:g:p:t:", 
-                                   ["help", "output=", "input=", "groups=", "pLimit=", "time="])
-    except getopt.GetoptError as err:
-        # print help information and exit:
-        print(err)                                                                  # Will print something like "option -a not recognized"
-        usage()
+    # try:
+    #     opts, args = getopt.getopt(sys.argv[1:], "ho:i:g:p:t:d:", 
+    #                                ["help", "output=", "input=", "groups=", "pLimit=", "time=", "digital="])
+    # except getopt.GetoptError as err:
+    #     # print help information and exit:
+    #     print(err)                                                                  # Will print something like "option -a not recognized"
+    #     usage()
 
-    for o, a in opts:
-        if o in ("-h", "--help"):
-            usage()
-        elif o in ("-t", "--time"):
-            timing_analysis_flag = True
-            timing_args = list(map(int, a.split(",")))
+    # for o, a in opts:
+    #     if o in ("-h", "--help"):
+    #         usage()
+    #     elif o in ("-t", "--time"):
+    #         timing_analysis_flag = True
+    #         timing_args = list(map(int, a.split(",")))
 
-            if (len(timing_args) == 1):                                                    # If the user passed -t with no arguments use timing_analysis function defaults
-                print("Using default timing analysis settings")
-                continue
-            elif (len(timing_args) != 4):                                                   # Timing analysis function takes 4 user parameters
-                print("Timing analysis expects 4 arguments: check_time, " +
-                      "press_debounce, unpress_debounce, timeout")
-                exit()
-            for a in timing_args:
-                if (a == None or a < 0):                                            # if any of the arguments are invalid raise exception
-                    print("Timing analysis parameters must be greater than 0")
-                    exit()
+    #         if (len(timing_args) == 1):                                                    # If the user passed -t with no arguments use timing_analysis function defaults
+    #             print("Using default timing analysis settings")
+    #             continue
+    #         elif (len(timing_args) != 4):                                                   # Timing analysis function takes 4 user parameters
+    #             print("Timing analysis expects 4 arguments: check_time, " +
+    #                   "press_debounce, unpress_debounce, timeout")
+    #             exit()
+    #         for a in timing_args:
+    #             if (a == None or a < 0):                                            # if any of the arguments are invalid raise exception
+    #                 print("Timing analysis parameters must be greater than 0")
+    #                 exit()
 
-        elif o in ("-o", "--output"):
-            OUT_FILENAME = a
-        elif o in ("-i", "--input"):
-            IN_FILENAME = a
-        elif o in ("-g", "--groups"):
-            GROUPS = list(map(str, a.split(";")))
-            GROUPS = [list(map(int, i.split(","))) for i in GROUPS] 
+    #     elif o in ("-o", "--output"):
+    #         OUT_FILENAME = a
+    #     elif o in ("-i", "--input"):
+    #         IN_FILENAME = a
+    #     elif o in ("-g", "--groups"):
+    #         GROUPS = list(map(str, a.split(";")))
+    #         GROUPS = [list(map(int, i.split(","))) for i in GROUPS] 
 
-        elif o in ("-p", "--pLimit"):
-            try:
-                process_limit = int(a)
-                if (process_limit < 1): raise Exception
-                elif (process_limit > 20): raise Exception
-            except:
-                print("**Error: Invalid process limit of " + str(a) + ". Limit must fall within 1-20.\n")
-                exit()    
-        else:
-            assert False, "unhandled option"
+    #     elif o in ("-p", "--pLimit"):
+    #         try:
+    #             process_limit = int(a)
+    #             if (process_limit < 1): raise Exception
+    #             elif (process_limit > 20): raise Exception
+    #         except:
+    #             print("**Error: Invalid process limit of " + str(a) + ". Limit must fall within 1-20.\n")
+    #             exit()    
+    #     elif o in ("-d", "--digital"):
+    #           DIGITAL = list(map(str, a.split(",")))
+    #     else:
+    #         assert False, "unhandled option"
 
-    if (len(opts) == 0): usage()
-    
-    # GROUPS = [[10, 11, 12], [20, 21, 22], [30, 31, 32]]
-    # IN_FILENAME = "./TEST"
-    # OUT_FILENAME = "outTest"
-    # timing_analysis_flag = True
+    # if (len(opts) == 0): usage()
+    DIGITAL = [12]
+    GROUPS = [[10, 11, 12]]      #, [20, 21, 22], [30, 31, 32]]
+    IN_FILENAME = "./ContactMonitoring/HPBTEST"
+    OUT_FILENAME = "outTest"
+    timing_analysis_flag = True
 
     if (GROUPS == None):
         print("**Error: Must include list of group IDs. Try -g \"10, 11, 12\"\n")
@@ -888,7 +959,7 @@ def main():
             out_filename = OUT_FILENAME + str(in_file_list[file_num]) + ".csv"
             p[file_num] = mp.Process(target=convert_file,                           # Create a new process to convert an input file
                              args=(in_filename, out_filename, GROUPS, q[file_num], 
-                             timing_analysis_flag, timing_args,), daemon=True, name=in_filename)
+                             timing_analysis_flag, timing_args, DIGITAL,), daemon=True, name=in_filename)
             p[file_num].start()
             
             print("Starting:\t" + str(p[file_num]))
