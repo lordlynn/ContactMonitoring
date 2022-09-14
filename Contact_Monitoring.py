@@ -8,7 +8,6 @@
 #                   should be executed from a terminal window so that 
 #                   options may be used (-g is required, -h for help).
 #-----------------------------------------------------------------------
-from hashlib import new
 import numpy as np
 import time
 import multiprocessing as mp
