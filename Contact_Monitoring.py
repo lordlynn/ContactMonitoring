@@ -790,7 +790,7 @@ def timing_analysis(out_filename, check_time=7, press_debounce=5, unpress_deboun
             unpressed_count_total[contact + shift] += unpressed_count_cur[contact + shift]
             high_out_count_total[contact + shift] += high_out_count_cur[contact + shift]
         shift += len(GROUPS[group])
-    print("good press: " + str(good_press) + "\nbad press: " + str(bad_press))
+
     save_timing_summary(out_filename, undefined_count_total, low_out_count_total, pressed_count_total,
                         transition_count_total, unpressed_count_total, high_out_count_total,
                         good_press, bad_press, good_unpress, bad_unpress, bad_press_locations, 
@@ -864,10 +864,10 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital):
     write_to_csv(out_filename)
 
     if (flag): 
-        # if (len(args) == 4):
-        #     timing_analysis(out_filename, args[0], args[1], args[2], args[3])
-        # else:
-        timing_analysis(out_filename)
+        if (len(args) == 4):
+            timing_analysis(out_filename, args[0], args[1], args[2], args[3])
+        else:
+            timing_analysis(out_filename)
     while True:
         q.put(1)
         time.sleep(0.5)
@@ -887,60 +887,60 @@ def main():
     timing_analysis_flag = False
     process_limit = 2                                                           # default limit for how many files can be parallelized at a time. letting limit go to inf slows execution drastically due to memory and cpu usage
     timing_args = None
-    # try:
-    #     opts, args = getopt.getopt(sys.argv[1:], "ho:i:g:p:t:d:", 
-    #                                ["help", "output=", "input=", "groups=", "pLimit=", "time=", "digital="])
-    # except getopt.GetoptError as err:
-    #     # print help information and exit:
-    #     print(err)                                                                  # Will print something like "option -a not recognized"
-    #     usage()
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "ho:i:g:p:t:d:", 
+                                   ["help", "output=", "input=", "groups=", "pLimit=", "time=", "digital="])
+    except getopt.GetoptError as err:
+        # print help information and exit:
+        print(err)                                                                  # Will print something like "option -a not recognized"
+        usage()
 
-    # for o, a in opts:
-    #     if o in ("-h", "--help"):
-    #         usage()
-    #     elif o in ("-t", "--time"):
-    #         timing_analysis_flag = True
-    #         timing_args = list(map(int, a.split(",")))
+    for o, a in opts:
+        if o in ("-h", "--help"):
+            usage()
+        elif o in ("-t", "--time"):
+            timing_analysis_flag = True
+            timing_args = list(map(int, a.split(",")))
 
-    #         if (len(timing_args) == 1):                                                    # If the user passed -t with no arguments use timing_analysis function defaults
-    #             print("Using default timing analysis settings")
-    #             continue
-    #         elif (len(timing_args) != 4):                                                   # Timing analysis function takes 4 user parameters
-    #             print("Timing analysis expects 4 arguments: check_time, " +
-    #                   "press_debounce, unpress_debounce, timeout")
-    #             exit()
-    #         for a in timing_args:
-    #             if (a == None or a < 0):                                            # if any of the arguments are invalid raise exception
-    #                 print("Timing analysis parameters must be greater than 0")
-    #                 exit()
+            if (len(timing_args) == 1):                                                    # If the user passed -t with no arguments use timing_analysis function defaults
+                print("Using default timing analysis settings")
+                continue
+            elif (len(timing_args) != 4):                                                   # Timing analysis function takes 4 user parameters
+                print("Timing analysis expects 4 arguments: check_time, " +
+                      "press_debounce, unpress_debounce, timeout")
+                exit()
+            for a in timing_args:
+                if (a == None or a < 0):                                            # if any of the arguments are invalid raise exception
+                    print("Timing analysis parameters must be greater than 0")
+                    exit()
 
-    #     elif o in ("-o", "--output"):
-    #         OUT_FILENAME = a
-    #     elif o in ("-i", "--input"):
-    #         IN_FILENAME = a
-    #     elif o in ("-g", "--groups"):
-    #         GROUPS = list(map(str, a.split(";")))
-    #         GROUPS = [list(map(int, i.split(","))) for i in GROUPS] 
+        elif o in ("-o", "--output"):
+            OUT_FILENAME = a
+        elif o in ("-i", "--input"):
+            IN_FILENAME = a
+        elif o in ("-g", "--groups"):
+            GROUPS = list(map(str, a.split(";")))
+            GROUPS = [list(map(int, i.split(","))) for i in GROUPS] 
 
-    #     elif o in ("-p", "--pLimit"):
-    #         try:
-    #             process_limit = int(a)
-    #             if (process_limit < 1): raise Exception
-    #             elif (process_limit > 20): raise Exception
-    #         except:
-    #             print("**Error: Invalid process limit of " + str(a) + ". Limit must fall within 1-20.\n")
-    #             exit()    
-    #     elif o in ("-d", "--digital"):
-    #           DIGITAL = list(map(str, a.split(",")))
-    #     else:
-    #         assert False, "unhandled option"
+        elif o in ("-p", "--pLimit"):
+            try:
+                process_limit = int(a)
+                if (process_limit < 1): raise Exception
+                elif (process_limit > 20): raise Exception
+            except:
+                print("**Error: Invalid process limit of " + str(a) + ". Limit must fall within 1-20.\n")
+                exit()    
+        elif o in ("-d", "--digital"):
+              DIGITAL = list(map(int, a.split(",")))
+        else:
+            assert False, "unhandled option"
 
     # if (len(opts) == 0): usage()
-    DIGITAL = [12]
-    GROUPS = [[10, 11, 12]]      #, [20, 21, 22], [30, 31, 32]]
-    IN_FILENAME = "./ContactMonitoring/HPBTEST"
-    OUT_FILENAME = "outTest"
-    timing_analysis_flag = True
+    # DIGITAL = [12, 22] # 32, 42]
+    # GROUPS = [[10, 11, 12], [20, 21, 22]] # [30, 31, 32], [40, 41, 42]]    
+    # IN_FILENAME = "./HPBTEST"
+    # OUT_FILENAME = "outTest"
+    # timing_analysis_flag = True
 
     if (GROUPS == None):
         print("**Error: Must include list of group IDs. Try -g \"10, 11, 12\"\n")
