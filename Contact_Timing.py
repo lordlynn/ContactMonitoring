@@ -1,4 +1,5 @@
 import csv
+
 class Contact_Timing:
     GROUPS = None
     DIGITAL = None
@@ -43,53 +44,53 @@ class Contact_Timing:
         maximum = len(max(self.data))
         
         total = 0
-        for group in self.GROUPS:                                                       # Iterates through the contact groups    
+        for group in self.GROUPS:                                                           # Iterates through the contact groups    
             total += len(group)
 
-        undefined_count_cur = [0] * total                                               # Stores how many consecutive iterations a contact has been in state 0 
-        low_out_count_cur = [0] * total                                                 # Stores how many consecutive iterations a contact has been in state 1 
-        pressed_count_cur = [0] * total                                                 # Stores how many consecutive iterations a contact has been in state 2 
-        transition_count_cur = [0] * total                                              # Stores how many consecutive iterations a contact has been in state 3 
-        unpressed_count_cur = [0] * total                                               # Stores how many consecutive iterations a contact has been in state 4 
-        high_out_count_cur = [0] * total                                                # Stores how many consecutive iterations a contact has been in state 5 
+        undefined_count_cur = [0] * total                                                   # Stores how many consecutive iterations a contact has been in state 0 
+        low_out_count_cur = [0] * total                                                     # Stores how many consecutive iterations a contact has been in state 1 
+        pressed_count_cur = [0] * total                                                     # Stores how many consecutive iterations a contact has been in state 2 
+        transition_count_cur = [0] * total                                                  # Stores how many consecutive iterations a contact has been in state 3 
+        unpressed_count_cur = [0] * total                                                   # Stores how many consecutive iterations a contact has been in state 4 
+        high_out_count_cur = [0] * total                                                    # Stores how many consecutive iterations a contact has been in state 5 
 
-        undefined_count_total = [0] * total                                             # Stores how many total iterations a contact was in state 0
-        low_out_count_total = [0] * total                                               # Stores how many total iterations a contact was in state 1
-        pressed_count_total = [0] * total                                               # Stores how many total iterations a contact was in state 2
-        transition_count_total = [0] * total                                            # Stores how many total iterations a contact was in state 3
-        unpressed_count_total = [0] * total                                             # Stores how many total iterations a contact was in state 4
-        high_out_count_total = [0] * total                                              # Stores how many total iterations a contact was in state 5
+        undefined_count_total = [0] * total                                                 # Stores how many total iterations a contact was in state 0
+        low_out_count_total = [0] * total                                                   # Stores how many total iterations a contact was in state 1
+        pressed_count_total = [0] * total                                                   # Stores how many total iterations a contact was in state 2
+        transition_count_total = [0] * total                                                # Stores how many total iterations a contact was in state 3
+        unpressed_count_total = [0] * total                                                 # Stores how many total iterations a contact was in state 4
+        high_out_count_total = [0] * total                                                  # Stores how many total iterations a contact was in state 5
 
-        delta_time = [0] * total                                                        # Stores the difference between current timestamp and the last timestamp of a contact
-        check_time_locations = [[] for i in range(total)]                               # Stores a list of delta times greater than 10ms and what row in the CSV file they occur
-        timing_offset_shift = [0] * total                                               # If timestamps are not aligned at the beginning of a file this will shift the indices so that they align
+        delta_time = [0] * total                                                            # Stores the difference between current timestamp and the last timestamp of a contact
+        check_time_locations = [[] for i in range(total)]                                   # Stores a list of delta times greater than 10ms and what row in the CSV file they occur
+        timing_offset_shift = [0] * total                                                   # If timestamps are not aligned at the beginning of a file this will shift the indices so that they align
 
-        
+        last_contact_state = [0] * total                                                    # Stores contact states at last good/bad press/unpress to help avoid state oscillation
+        cur_contact_state = [0] * total                                                     # STores the current contact states. This is compared to last state 
 
-        timeout_press_counter = [0] * len(self.GROUPS)                                  # Stores the count used to determine if all contacts closed within enough time of eachother
-        timeout_unpress_counter = [0] * len(self.GROUPS)                                # Stores the count used to determine if all contacts opened within enough time of eachother
-        timeout_press_flag = [True] * len(self.GROUPS)
-        timeout_unpress_flag = [True] * len(self.GROUPS)   
 
-        good_press = [0] * len(self.GROUPS)                                              # Stores how many total good presses there were for each contact group
-        bad_press = [0] * len(self.GROUPS)                                               # Stores how many total bad presses there were for each contact group
-        bad_press_locations = [[] for i in range(len(self.GROUPS))]                      # Sores the location of every recorded bad press
+        timeout_press_counter = [0] * len(self.GROUPS)                                      # Stores the count used to determine if all contacts closed within enough time of eachother
+        timeout_unpress_counter = [0] * len(self.GROUPS)                                    # Stores the count used to determine if all contacts opened within enough time of eachother
 
-        good_unpress = [0] * len(self.GROUPS)                                            # Stores how many total good unpresses there were for each contact group
-        bad_unpress = [0] * len(self.GROUPS)                                             # Stores how many total bad unpresses there were for each contact group
-        bad_unpress_locations = [[] for i in range(len(self.GROUPS))]                    # Sores the location of every recorded bad press
+        good_press = [0] * len(self.GROUPS)                                                 # Stores how many total good presses there were for each contact group
+        bad_press = [0] * len(self.GROUPS)                                                  # Stores how many total bad presses there were for each contact group
+        bad_press_locations = [[] for i in range(len(self.GROUPS))]                         # Sores the location of every recorded bad press
+
+        good_unpress = [0] * len(self.GROUPS)                                               # Stores how many total good unpresses there were for each contact group
+        bad_unpress = [0] * len(self.GROUPS)                                                # Stores how many total bad unpresses there were for each contact group
+        bad_unpress_locations = [[] for i in range(len(self.GROUPS))]                       # Sores the location of every recorded bad press
 
         new_press_flag = [True] * len(self.GROUPS)
         new_unpress_flag = [True] * len(self.GROUPS)
 
         adjusted_index = 0
 
-        for index in range(maximum):                                                     # Iterates through the rows of the csv file
+        for index in range(maximum):                                                        # Iterates through the rows of the csv file
             shift = 0
             
             # These two loops iterate through all of the contacts and update state counts 
-            for group in range(len(self.GROUPS)):                                        # Iterates through the contact groups    
-                for contact in range(len(self.GROUPS[group])):                           # Iterates through the individual contact test points that make up a single dome pad or other contact. 
+            for group in range(len(self.GROUPS)):                                           # Iterates through the contact groups    
+                for contact in range(len(self.GROUPS[group])):                              # Iterates through the individual contact test points that make up a single dome pad or other contact. 
                     adjusted_index = index + timing_offset_shift[contact + shift] 
 
                     if (adjusted_index > 0 and adjusted_index < len(self.data[contact + shift]) - 1):
@@ -275,43 +276,87 @@ class Contact_Timing:
 
                 # Check state_count_cur lists to debounce pressed and unpressed states
                 for i in range(group_len):
+        
+                    cur_contact_state[i + shift] = self.data[i + shift][adjusted_index][3]                          # Record current contact states for later comparison to avoid state oscillation
+        
                     if (pressed_count_cur[i + shift] >= press_debounce):                                    # If the contact has been in the pressed sate consecutively for "press_debounce_limit" iterations
                         pressed_flag += 1
-                        if (timeout_press_flag[group] == True):                                             # Save the index at which a contact was first press debounced to check that all contacts close within "timeout_limit" iterations
+                        if (pressed_count_cur[i + shift] == press_debounce and 
+                            cur_contact_state[i + shift] != last_contact_state[i + shift]):
                             timeout_press_counter[group] = adjusted_index
-                            timeout_press_flag[group] = False
 
                     elif (unpressed_count_cur[i + shift] >= unpress_debounce):                              # If the contact has been in the unpressed sate consecutively for "press_debounce_limit" iterations
                         unpressed_flag += 1
-                        if (timeout_unpress_flag[group] == True):                                           # Save the index at which a contact was first unpress debounced to check that all contacts open within "timeout_limit" iterations
+                        # TODO - CHECK IF TIMEOUT IS SET MULTIPLE TIMES TO THE MOST RECENT CONTACT TO ENTER STATE RATHER THAN FIRST
+                        if (unpressed_count_cur[i + shift] == unpress_debounce and 
+                            cur_contact_state[i + shift] != last_contact_state[i + shift]):
                             timeout_unpress_counter[group] = adjusted_index
-                            timeout_unpress_flag[group] = False
+
                 # If not all of the contacts close within the timeout limit then a bad press is recorded
-                if (pressed_flag > 0 and (adjusted_index - timeout_press_counter[group]) > timeout and new_press_flag[group]):
+                if (pressed_flag > 0 and timeout_press_counter[group] > 0 and (adjusted_index - timeout_press_counter[group]) > timeout and new_press_flag[group] and
+                    last_contact_state[group*group_len:(group+1)*group_len] != cur_contact_state[group*group_len:(group+1)*group_len]):
+                
                     bad_press[group] += 1
                     bad_press_locations[group].append(adjusted_index + 2)
-                    timeout_unpress_flag[group] = True
+                    # timeout_unpress_flag[group] = True
                     new_press_flag[group] = False
                     new_unpress_flag[group] = True
+
+                    for z in range(group * group_len, group * group_len + group_len):                       # After a bad press/unpress reset the current counts to prevent oscillation between bad press/unpress states
+                        unpressed_count_total[z] += unpressed_count_cur[z]
+                        unpressed_count_cur[z] = 0 
+                        last_contact_state[z] = self.data[z][adjusted_index][3]  
+                    
+                    timeout_press_counter[group] = -1
+                    timeout_unpress_counter[group] = -1
+
+
                 # If not all of the contacts open within the timeout limit then a bad unpress is recorded
-                elif (unpressed_flag > 0 and (adjusted_index - timeout_unpress_counter[group]) > timeout and new_unpress_flag[group]):
+                elif (unpressed_flag > 0 and timeout_unpress_counter[group] > 0 and (adjusted_index - timeout_unpress_counter[group]) > timeout and new_unpress_flag[group] and
+                      last_contact_state[group*group_len:(group+1)*group_len] != cur_contact_state[group*group_len:(group+1)*group_len]):
                     bad_unpress[group] += 1
                     bad_unpress_locations[group].append(adjusted_index + 2)
-                    timeout_press_flag[group] = True
+                    # timeout_press_flag[group] = True
                     new_unpress_flag[group] = False
                     new_press_flag[group] = True
 
-                elif (pressed_flag == group_len and new_press_flag[group]):                                 # If all of the contacts in a group were debounced in the pressed state successfully, record a good press     
+                    for z in range(group * group_len, group * group_len + group_len):                       # After a bad press/unpress reset the current counts to prevent oscillation between bad press/unpress states
+                        pressed_count_total[z] += pressed_count_cur[z]
+                        pressed_count_cur[z] = 0 
+                        last_contact_state[z] = self.data[z][adjusted_index][3]                         # Records the state of each contact
+                    
+                    timeout_press_counter[group] = -1
+                    timeout_unpress_counter[group] = -1
+
+                elif (pressed_flag == group_len and new_press_flag[group] and                               # If all of the contacts in a group were debounced in the pressed state successfully, record a good press
+                      last_contact_state[group*group_len:(group+1)*group_len] != cur_contact_state[group*group_len:(group+1)*group_len]):      
                     good_press[group] += 1
-                    timeout_unpress_flag[group] = True
+                    # timeout_unpress_flag[group] = True
                     new_press_flag[group] = False
                     new_unpress_flag[group] = True
 
-                elif (unpressed_flag == group_len and new_unpress_flag[group]):                             # If all of the contacts in a group were debounced in the unpressed state successfully, record a good press  
+                    for z in range(group * group_len, group * group_len + group_len):                       # After a good press/unpress record state of contacts 
+                        unpressed_count_total[z] += unpressed_count_cur[z]
+                        unpressed_count_cur[z] = 0 
+                        last_contact_state[z] = self.data[z][adjusted_index][3]
+                    
+                    timeout_press_counter[group] = -1
+                    timeout_unpress_counter[group] = -1
+
+                elif (unpressed_flag == group_len and new_unpress_flag[group] and                           # If all of the contacts in a group were debounced in the unpressed state successfully, record a good press  
+                    last_contact_state[group*group_len:(group+1)*group_len] != cur_contact_state[group*group_len:(group+1)*group_len]):
                     good_unpress[group] += 1
-                    timeout_press_flag[group] = True
+                    # timeout_press_flag[group] = True
                     new_unpress_flag[group] = False
                     new_press_flag[group] = True
+
+                    for z in range(group * group_len, group * group_len + group_len):                       # After a good press/unpress record state of contacts 
+                        pressed_count_total[z] += pressed_count_cur[z]
+                        pressed_count_cur[z] = 0 
+                        last_contact_state[z] = self.data[z][adjusted_index][3]
+
+                    timeout_press_counter[group] = -1
+                    timeout_unpress_counter[group] = -1
 
                 shift += group_len
             if (index == 0):                                                                                # On the first iteration check that the first timestamp for every contact is aligned

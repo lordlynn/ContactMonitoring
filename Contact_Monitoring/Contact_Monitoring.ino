@@ -17,7 +17,7 @@
 #define INCH_MAX 16                                                         // Maximum number of ADC input channels
 
 /******************** Configurations ********************************/      
-#define FILE_NAME_TEMPLATE "HPBTest"                                        // Name stem for output files. A number will be added to the end of the name to create uniue filenames
+#define FILE_NAME_TEMPLATE "Test"                                           // Name stem for output files. A number will be added to the end of the name to create uniue filenames
 #define FILE_LIMIT 75                                                       // Maximum number of files that are allowed to be created
 #define WRITE_LIMIT 1040000                                                 // Determines the maximum number of rows the output excel file will be. 10485760 is the excel max number of rows
 #define V_SCALE 5.000                                                       // Voltage scaling factor. If input to ADC is 5v use 5.0. If a voltage divider is used put the scaling factor here
@@ -51,7 +51,7 @@ void setup() {
   delay(1000);          
   
   writer.SD_read_config(CS_PIN, STATUS_PIN, contact_list);                  // Reads the config.xml file and sets user configurations
-  writer.SD_open(create_filename());                                        // Creates\Opens the first data output file
+  writer.SD_open(create_filename(), STATUS_PIN);                                        // Creates\Opens the first data output file
   file_count++;
 
   writer.SD_allocate_buffer();                                              // Allocating buffers is done outside of constructor so that there is more free memory during the reading of the config file
@@ -93,7 +93,7 @@ void loop() {
         close_sd();                                                         // If file count passes file limit stop to avoid writing more than SD card size
       }
       
-      writer.SD_open(create_filename());                                    // Create and open new data file
+      writer.SD_open(create_filename(), STATUS_PIN);                                    // Create and open new data file
       file_count++;
       writer.byte_count = 0;
       writer.write_count = 0;
@@ -207,7 +207,8 @@ void close_sd(void) {
     if (writer.SD_save_bin(contact_list, &flush_count)) {
       last_flush_count -= 512;
     }
-  }while(!writer.SD_close(&flush_count, last_flush_count));
+  } while(!writer.SD_close(&flush_count, last_flush_count));
+  
   TIMSK5 &=~ (1 << OCIE5A);
 
   digitalWrite(STATUS_PIN, HIGH);

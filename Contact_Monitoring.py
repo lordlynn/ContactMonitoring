@@ -17,13 +17,14 @@ import sys
 import Contact_Timing as CT
 
 
-FLOAT_TO_LONG = 10000000                                                        # Comes from the arduino code. doubles were stored as uint32_t * 10000000 instead of a double
-IN_FILENAME = "TEST"                                                            # Name of input file stem to read from
-OUT_FILENAME = "output"                                                         # Name stem to give to the output csv file
-GROUPS = None                                                                   # List of group IDs to decode data for
-DIGITAL = None                                                                  # List of contact IDs for digital contacts. Digital contacts have 3 states 1 being closed, 2 being transition, and 3 being open.
-refined_data = []                                                               # Stores the data as a 1D list of dictionaries  
-data = []                                                                       # Stores the data seperated by contact ID 
+FLOAT_TO_LONG = 10000000                                                                    # Comes from the arduino code. doubles were stored as uint32_t * 10000000 instead of a double
+IN_FILENAME = "TEST"                                                                        # Name of input file stem to read from
+OUT_FILENAME = "output"                                                                     # Name stem to give to the output csv file
+GROUPS = None                                                                               # List of group IDs to decode data for
+DIGITAL = None                                                                              # List of contact IDs for digital contacts. Digital contacts have 3 states 1 being closed, 2 being transition, and 3 being open.
+raw_data = None                                                                             # Byte array read directly from BIN file
+refined_data = []                                                                           # Stores the data as a 1D list of dictionaries  
+data = []                                                                                   # Stores the data seperated by contact ID 
 in_file_count = 1
 
 
@@ -37,7 +38,7 @@ in_file_count = 1
 #-----------------------------------------------------------------------
 def read_file(filename):
     global raw_data, in_file_count
-    raw_data = None                                                             # Stores the raw binary data from the input file
+    raw_data = None                                                                         # Stores the raw binary data from the input file
     dtype = np.dtype('B')
     try:
         with open(filename, "rb") as fp:
@@ -81,7 +82,7 @@ def count_files():
 #-----------------------------------------------------------------------
 # Function: convert_data()
 # Description: This function converts the raw binary data back  
-#   into its original type. 0xEE and 0xCE are delimiters
+#   into its original type. 0xEE delimits between entries
 #
 # param: void
 # return: void
@@ -96,9 +97,9 @@ def convert_data(filename):
     temp_voltage = 0
     temp_state = 0
 
-    while (i < len(raw_data)):                                                  # A while loop is used instead of a for loop so that i can be incremented inside of the loop
-        if (raw_data[i] == 0xEE):                                               # If a new observation is starting save the last one and get ready for next
-            if (i > 0):                                                         # Don't try to save the temp data on the first iteration. Files always start with "EE" so skip first
+    while (i < len(raw_data)):                                                              # A while loop is used instead of a for loop so that i can be incremented inside of the loop
+        if (raw_data[i] == 0xEE):                                                           # If a new observation is starting save the last one and get ready for next
+            if (i > 0):                                                                     # Don't try to save the temp data on the first iteration. Files always start with "EE" so skip first
                 temp = {"timestamp": temp_timestamp, 
                         "group": temp_group,
                         "voltage": temp_voltage,
@@ -106,26 +107,26 @@ def convert_data(filename):
                 refined_data.append(temp)
 
             i += 1
-        else:                                                                   # If the data is not a delimiter reformat it back to its original type
+        else:                                                                               # If the data is not a delimiter reformat it back to its original type
             try:
-                temp_timestamp = (raw_data[i] << 24 |                           # Timestamp was saved as uint32_t
+                temp_timestamp = (raw_data[i] << 24 |                                       # Timestamp was saved as uint32_t
                                  raw_data[i + 1] << 16 | 
                                  raw_data[i + 2] << 8 | 
                                  raw_data[i + 3]) 
             
-                temp_group = raw_data[i + 4]                                    # Group is a uint8_t
+                temp_group = raw_data[i + 4]                                                # Group is a uint8_t
             
-                temp_voltage = (raw_data[i + 5] << 24 |                         # Voltage was saved as (uint32_t)(double * FLOAT_TO_LONG)
+                temp_voltage = (raw_data[i + 5] << 24 |                                     # Voltage was saved as (uint32_t)(double * FLOAT_TO_LONG)
                                 raw_data[i + 6] << 16 | 
                                 raw_data[i + 7] << 8 | 
                                 raw_data[i + 8]) / FLOAT_TO_LONG
         
-                temp_state = raw_data[i + 9]                                    # State is a uint8_t
+                temp_state = raw_data[i + 9]                                                # State is a uint8_t
                 i += 10
             except IndexError as e:
-                print(str(filename) + ": may be missing data in last row")      # If this happens tinmestamps may not be alined in the next file
+                print(str(filename) + ": may be missing data in last row")                  # If this happens tinmestamps may not be alined in the next file
                 break
-    try:                                                                        # Read the last entry if it exists
+    try:                                                                                    # Read the last entry if it exists
         temp = {"timestamp": temp_timestamp, 
                         "group": temp_group,
                         "voltage": temp_voltage,
@@ -133,6 +134,8 @@ def convert_data(filename):
         refined_data.append(temp)
     except Exception as e:
         print("At end of decoding: " + str(e))
+
+    del raw_data # Free the memory used to hold the raw byte array
 
 
 #-----------------------------------------------------------------------
@@ -145,7 +148,7 @@ def convert_data(filename):
 # return: void
 #-----------------------------------------------------------------------
 def separate_data():
-    global data
+    global data, refined_data
     data = []
     for group in GROUPS:
         for contact in group:
@@ -156,6 +159,7 @@ def separate_data():
                                 datum['voltage'], datum['state']])
 
             data.append(temp)
+    del refined_data
 
 
 #-----------------------------------------------------------------------
@@ -172,7 +176,7 @@ def write_to_csv(filename):
     shift = 0        
 
     max_len = len(data[0])
-    for group in GROUPS:                                                        # Find the length of the longest data set
+    for group in GROUPS:                                                                    # Find the length of the longest data set
         for contact in range(len(group)):
             if (len(data[contact + shift]) > max_len):
                 max_len = len(data[contact + shift]) 
@@ -182,7 +186,7 @@ def write_to_csv(filename):
     with open(filename, 'w', newline='\n') as csvfile:
         csv_writer = csv.writer(csvfile, delimiter=',')
         
-        for group in range(shift):                                              # Sets up the headers at the top of excel file 
+        for group in range(shift):                                                          # Sets up the headers at the top of excel file 
             temp.append("Group")
             temp.append("Time(ms)")
             temp.append("Voltage(V)")
@@ -191,9 +195,9 @@ def write_to_csv(filename):
         csv_writer.writerow(temp)
 
         while (index < max_len):
-            temp = []                                                           # Temp stores each row of the csv file before it is written
+            temp = []                                                                       # Temp stores each row of the csv file before it is written
            
-            for group in range(shift):                                          # Assemble next row to write to csv
+            for group in range(shift):                                                      # Assemble next row to write to csv
                 if (index < len(data[group])):
                     temp.append(data[group][index][0])
                     temp.append(data[group][index][1])
@@ -299,14 +303,15 @@ def main():
     global OUT_FILENAME, IN_FILENAME, GROUPS, DIGITAL
     global raw_data, refined_data, data, in_file_count, in_file_list
     timing_analysis_flag = False
-    process_limit = 2                                                           # default limit for how many files can be parallelized at a time. letting limit go to inf slows execution drastically due to memory and cpu usage
+    process_limit = 2                                                                       # default limit for how many files can be parallelized at a time. letting limit go to inf slows execution drastically due to memory and cpu usage
     timing_args = None
     try:
         opts, args = getopt.getopt(sys.argv[1:], "ho:i:g:p:t:d:", 
-                                   ["help", "output=", "input=", "groups=", "pLimit=", "time=", "digital="])
+                                   ["help", "output=", "input=", "groups=", 
+                                    "pLimit=", "time=", "digital="])
     except getopt.GetoptError as err:
         # print help information and exit:
-        print(err)                                                                  # Will print something like "option -a not recognized"
+        print(err)                                                                          # Will print something like "option -a not recognized"
         usage()
 
     for o, a in opts:
@@ -317,12 +322,12 @@ def main():
 
             timing_args = list(map(int, a.split(",")))
 
-            if (len(timing_args) != 4):                                                   # Timing analysis function takes 4 user parameters
+            if (len(timing_args) != 4):                                                     # Timing analysis function takes 4 user parameters
                 print("Timing analysis expects 4 arguments: check_time, " +
                       "press_debounce, unpress_debounce, timeout")
                 exit()
             for arg in timing_args:
-                if (arg == None or arg <= 0):                                            # if any of the arguments are invalid raise exception
+                if (arg == None or arg <= 0):                                               # if any of the arguments are invalid raise exception
                     print("Timing analysis parameters must be greater than 0")
                     exit()
 
@@ -348,10 +353,12 @@ def main():
             assert False, "unhandled option"
 
     if (len(opts) == 0): usage()
-    # DIGITAL = []  #[12, 22] # 32, 42]
-    # GROUPS = [[10, 11, 12]] #, [20, 21, 22], [30, 31, 32], [40, 41, 42]]    
-    # IN_FILENAME = "./TEST"
-    # OUT_FILENAME = "outTest"
+
+
+    # DIGITAL = [12, 22, 32, 42]  #[12, 22] # 32, 42]
+    # GROUPS = [[10, 11, 12], [20, 21, 22], [30, 31, 32], [40, 41, 42]] # [10, 11, 12], [20, 21, 22], [30, 31, 32],     
+    # IN_FILENAME = "./HPBTEST"
+    # OUT_FILENAME = "bugFix-R3-file"
     # timing_analysis_flag = True
     # timing_args = [7, 5, 5, 30]
 
@@ -365,12 +372,12 @@ def main():
     q = [None] * in_file_count
     process_count = 0
 
-    while (file_num <= in_file_count + 1):                                          # While there are still files to convert
-        if (process_count < process_limit and file_num < in_file_count):            # Start converting the next file if more processes are allowed to be started
-            q[file_num] = mp.Queue()                                                # Queue is shared and protected memory for multiprocessing to use. the queue will be written to so that the parent thread can terminate child processes
+    while (file_num <= in_file_count + 1):                                                  # While there are still files to convert
+        if (process_count < process_limit and file_num < in_file_count):                    # Start converting the next file if more processes are allowed to be started
+            q[file_num] = mp.Queue()                                                        # Queue is shared and protected memory for multiprocessing to use. the queue will be written to so that the parent thread can terminate child processes
             in_filename = IN_FILENAME + str(in_file_list[file_num]) + ".bin"    
             out_filename = OUT_FILENAME + str(in_file_list[file_num]) + ".csv"
-            p[file_num] = mp.Process(target=convert_file,                           # Create a new process to convert an input file
+            p[file_num] = mp.Process(target=convert_file,                                   # Create a new process to convert an input file
                              args=(in_filename, out_filename, GROUPS, q[file_num], 
                              timing_analysis_flag, timing_args, DIGITAL,),
                              daemon=True, name=in_filename)
@@ -380,28 +387,28 @@ def main():
             process_count += 1
             file_num += 1
             time.sleep(0.5)
-        else:                                                                       # If the maximum number of allowed processes already exists
+        else:                                                                               # If the maximum number of allowed processes already exists
             for i in range(in_file_count):
-                if (p[i] == None): continue                                         # If none the processes has already finished and been released or has yet to be initialized
+                if (p[i] == None): continue                                                 # If none the processes has already finished and been released or has yet to be initialized
                 try:
-                    q[i].get(timeout=1)                                             # If the queue is empty it will timeout and raise an exception
+                    q[i].get(timeout=1)                                                     # If the queue is empty it will timeout and raise an exception
                     print("Killing:\t" + str(p[i]))                                 
-                    p[i].kill()                                                     # If a rocess queue returns any value then terminate the process
-                    time.sleep(1.0)                                                 # Sleep 1 second after terminating a process so that the .close() function will work
+                    p[i].kill()                                                             # If a process queue returns any value then terminate the process
+                    time.sleep(1.0)                                                         # Sleep 1 second after terminating a process so that the .close() function will work
                 except Exception as e: 
-                    continue                                                        # If the queue times out then the process has not finished yet
+                    continue                                                                # If the queue times out then the process has not finished yet
                 
                 try:
-                    p[i].close()                                                    # If a process is terminated call .close() to free process resources
+                    p[i].close()                                                            # If a process is terminated call .close() to free process resources
                     del p[i]
                     del q[i]
-                    p.append(None)                                                  # None is append to the end of the list so that size of the list does not change during a for loop
+                    p.append(None)                                                          # None is append to the end of the list so that size of the list does not change during a for loop
                     q.append(None)
                     
                 except:
                     print("Failed to release process")
                 process_count -= 1
-            if (file_num == in_file_count and process_count == 0):                  # If all files have been converted an all child process terminated, then break out of main loop and end program
+            if (file_num == in_file_count and process_count == 0):                          # If all files have been converted an all child process terminated, then break out of main loop and end program
                 break
           
     print("\nEND\n")

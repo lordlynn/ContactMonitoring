@@ -75,7 +75,7 @@ class SD_Lib {
      * Param: String (filename) - name of file to open
      * Return: NONE
      ********************************************************************/
-    void SD_open(String filename);
+    void SD_open(String filename, int status_pin);
         
     /*********************************************************************
      * Function: SD_close

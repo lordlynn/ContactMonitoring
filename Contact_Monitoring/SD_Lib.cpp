@@ -45,10 +45,12 @@ void SD_Lib::SD_allocate_buffer() {
  * Param: String (filename) - name of file to open
  * Return: NONE
  ********************************************************************/
-void SD_Lib::SD_open(String filename) {
+void SD_Lib::SD_open(String filename, int status_pin) {
   data_out = SD.open(filename, O_WRITE | O_TRUNC | O_CREAT);
   if (data_out == 0) {
     Serial.println("Failed to open data output file");
+    // TODO - If filename fails try to open using different filename
+    digitalWrite(status_pin, HIGH);
     while(1);                                                               // If the file failed to open stay in loop forever (status LED on)
   }
 }
