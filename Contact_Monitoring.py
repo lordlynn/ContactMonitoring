@@ -91,7 +91,8 @@ def convert_data(filename):
     global raw_data
     global refined_data
     refined_data = []
-    i = 0                                   
+    i = 0    
+    temp_temperature = 0                               
     temp_timestamp = 0
     temp_group = 0
     temp_voltage = 0
@@ -103,34 +104,38 @@ def convert_data(filename):
                 temp = {"timestamp": temp_timestamp, 
                         "group": temp_group,
                         "voltage": temp_voltage,
-                        "state": temp_state}
+                        "state": temp_state,
+                        "temperature": temp_temperature}
                 refined_data.append(temp)
 
             i += 1
         else:                                                                               # If the data is not a delimiter reformat it back to its original type
             try:
-                temp_timestamp = (raw_data[i] << 24 |                                       # Timestamp was saved as uint32_t
-                                 raw_data[i + 1] << 16 | 
-                                 raw_data[i + 2] << 8 | 
-                                 raw_data[i + 3]) 
+                temp_temperature = (raw_data[i] << 8 | raw_data[i+1]) / 100.0                # temperature was saves as int16_t multiplied by 10 to preserve decimal vals
+
+                temp_timestamp = (raw_data[i + 2] << 24 |                                   # Timestamp was saved as uint32_t
+                                 raw_data[i + 3] << 16 | 
+                                 raw_data[i + 4] << 8 | 
+                                 raw_data[i + 5]) 
             
-                temp_group = raw_data[i + 4]                                                # Group is a uint8_t
+                temp_group = raw_data[i + 6]                                                # Group is a uint8_t
             
-                temp_voltage = (raw_data[i + 5] << 24 |                                     # Voltage was saved as (uint32_t)(double * FLOAT_TO_LONG)
-                                raw_data[i + 6] << 16 | 
-                                raw_data[i + 7] << 8 | 
-                                raw_data[i + 8]) / FLOAT_TO_LONG
+                temp_voltage = (raw_data[i + 7] << 24 |                                     # Voltage was saved as (uint32_t)(double * FLOAT_TO_LONG)
+                                raw_data[i + 8] << 16 | 
+                                raw_data[i + 9] << 8 | 
+                                raw_data[i + 10]) / FLOAT_TO_LONG
         
-                temp_state = raw_data[i + 9]                                                # State is a uint8_t
-                i += 10
+                temp_state = raw_data[i + 11]                                                # State is a uint8_t
+                i += 12
             except IndexError as e:
                 print(str(filename) + ": may be missing data in last row")                  # If this happens tinmestamps may not be alined in the next file
                 break
     try:                                                                                    # Read the last entry if it exists
         temp = {"timestamp": temp_timestamp, 
-                        "group": temp_group,
-                        "voltage": temp_voltage,
-                        "state": temp_state}
+                "group": temp_group,
+                "voltage": temp_voltage,
+                "state": temp_state,
+                "temperature": temp_temperature}
         refined_data.append(temp)
     except Exception as e:
         print("At end of decoding: " + str(e))
@@ -156,7 +161,7 @@ def separate_data():
             for datum in refined_data:
                 if (datum['group'] == contact):
                     temp.append([datum['group'], datum['timestamp'], 
-                                datum['voltage'], datum['state']])
+                                datum['voltage'], datum['state'], datum['temperature']])
 
             data.append(temp)
     del refined_data
@@ -189,6 +194,7 @@ def write_to_csv(filename):
         for group in range(shift):                                                          # Sets up the headers at the top of excel file 
             temp.append("Group")
             temp.append("Time(ms)")
+            temp.append("Temp(C)")
             temp.append("Voltage(V)")
             temp.append("State")
             temp.append("")
@@ -201,6 +207,7 @@ def write_to_csv(filename):
                 if (index < len(data[group])):
                     temp.append(data[group][index][0])
                     temp.append(data[group][index][1])
+                    temp.append(data[group][index][4])
                     temp.append(data[group][index][2])
                     temp.append(data[group][index][3])
                     temp.append('')
@@ -357,8 +364,8 @@ def main():
 
     # DIGITAL = [12, 22, 32, 42]  #[12, 22] # 32, 42]
     # GROUPS = [[10, 11, 12], [20, 21, 22], [30, 31, 32], [40, 41, 42]] # [10, 11, 12], [20, 21, 22], [30, 31, 32],     
-    # IN_FILENAME = "./HPBTEST"
-    # OUT_FILENAME = "bugFix-R3-file"
+    # IN_FILENAME = "./ContactMonitoring/T"
+    # OUT_FILENAME = "./ContactMonitoring/TResults"
     # timing_analysis_flag = True
     # timing_args = [7, 5, 5, 30]
 

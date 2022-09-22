@@ -10,14 +10,15 @@
 #include "timer_interrupt.h"
 
 // Do not change
+#define TMP_PIN 69                                                          // ADC ch 16 used for temperature sensor
 #define STOP_PIN 18                                                         // Pin to connect stop button to
 #define CS_PIN 53                                                           // Passed to sd library on initialization to use this pin as the cs signal
 #define STATUS_PIN 5                                                        // D5 used for a status LED signaling if the SD card file opened
 #define FLOAT_TO_LONG 10000000                                              // Scalar used to convert float to uint32_t for the purpose of writing to bin file more efficiently
-#define INCH_MAX 16                                                         // Maximum number of ADC input channels
+#define INCH_MAX 15                                                         // Maximum number of ADC input channels. Limited to 15 in order to save 1 ch for a temperature sensor
 
 /******************** Configurations ********************************/      
-#define FILE_NAME_TEMPLATE "Test"                                           // Name stem for output files. A number will be added to the end of the name to create uniue filenames
+#define FILE_NAME_TEMPLATE "HPB"                                            // Name stem for output files. A number will be added to the end of the name to create uniue filenames
 #define FILE_LIMIT 75                                                       // Maximum number of files that are allowed to be created
 #define WRITE_LIMIT 1040000                                                 // Determines the maximum number of rows the output excel file will be. 10485760 is the excel max number of rows
 #define V_SCALE 5.000                                                       // Voltage scaling factor. If input to ADC is 5v use 5.0. If a voltage divider is used put the scaling factor here
@@ -26,7 +27,7 @@ uint32_t BYTE_LIMIT = 1000000 * 150;                                        // M
 /********************************************************************/
 
 // Do not change
-#define packet_size 11                                                      // Number of bytes required to save each data point. 
+#define packet_size 13                                                      // Number of bytes required to save each data point. 
 uint8_t file_count = 0;                                                     // Current number of files 
 uint16_t flush_count = 0;                                                   // Index last written to in the data buffer
 int last_flush_count = 0;                                                   // Index in data buffer where last complete row finished. Saving and closing a file should always use this count
@@ -150,10 +151,15 @@ void read_ADC(void) {
    *  
    */
   uint8_t index;
-
+  int16_t tmp = 0;
   if (flush_count > 4220 - packet_size * writer.INCH) {                     // If the buffer size will be exceeded by a write then return
     return;
   }
+
+  // Voltage to temp eq: 100C/V * (Vadc - 500mv) = degrees C
+  // The value is then multiplied by 100 once again so that the value can be saved as an int
+  tmp = 100 * 100 * ((analogRead(TMP_PIN) / 1023.0 * V_SCALE) - 0.5);             // Read temp sensor voltage and convert to degrees C
+       
   
   for (index = 0; index < writer.INCH; index++) {
     contact_list[index].voltage = analogRead(contact_list[index].pin) / 
@@ -171,7 +177,9 @@ void read_ADC(void) {
     }
 
     // saving data to buffer
-    writer.buffer[flush_count++] = 0xEE;                                    // Header to mark the begining of each entry is 0xEE
+    writer.buffer[flush_count++] = 0xEE;                                      // Header to mark the begining of each entry is 0xEE
+    writer.buffer[flush_count++] = (tmp & 0xFF00) >> 8;
+    writer.buffer[flush_count++] = (tmp & 0x00FF);
     
     writer.buffer[flush_count++] = (contact_list[index].timestamp & 0xFF000000) >> 24;
     writer.buffer[flush_count++] = (contact_list[index].timestamp & 0x00FF0000) >> 16;
