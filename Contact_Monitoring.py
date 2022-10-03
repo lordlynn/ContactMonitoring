@@ -111,7 +111,8 @@ def convert_data(filename):
             i += 1
         else:                                                                               # If the data is not a delimiter reformat it back to its original type
             try:
-                temp_temperature = (raw_data[i] << 8 | raw_data[i+1]) / 100.0                # temperature was saves as int16_t multiplied by 10 to preserve decimal vals
+                temp_temperature =  int.from_bytes([raw_data[i], raw_data[i+1]],
+                                   "big", signed=True) / 100.0                             # temperature was saves as int16_t multiplied by 10 to preserve decimal vals
 
                 temp_timestamp = (raw_data[i + 2] << 24 |                                   # Timestamp was saved as uint32_t
                                  raw_data[i + 3] << 16 | 
@@ -364,8 +365,8 @@ def main():
 
     # DIGITAL = [12, 22, 32, 42]  #[12, 22] # 32, 42]
     # GROUPS = [[10, 11, 12], [20, 21, 22], [30, 31, 32], [40, 41, 42]] # [10, 11, 12], [20, 21, 22], [30, 31, 32],     
-    # IN_FILENAME = "./ContactMonitoring/T"
-    # OUT_FILENAME = "./ContactMonitoring/TResults"
+    # IN_FILENAME = "./test"
+    # OUT_FILENAME = "./test"
     # timing_analysis_flag = True
     # timing_args = [7, 5, 5, 30]
 
