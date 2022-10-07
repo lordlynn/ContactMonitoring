@@ -33,7 +33,7 @@ uint16_t flush_count = 0;                                                   // I
 int last_flush_count = 0;                                                   // Index in data buffer where last complete row finished. Saving and closing a file should always use this count
 SD_Lib writer = SD_Lib();                                                   // Initializes SD_Lib object
 SD_Lib::contact contact_list[INCH_MAX];                                     // Creates a list of contact structs defined in SD_Lib
-
+uint8_t STOP_FLAG = 0;
 /*********************************************************************      
  * Function: setup()
  * Description: This function initialies the STOP_PIN as an input with 
@@ -52,7 +52,10 @@ void setup() {
   delay(1000);          
   
   writer.SD_read_config(CS_PIN, STATUS_PIN, contact_list);                  // Reads the config.xml file and sets user configurations
-  writer.SD_open(create_filename(), STATUS_PIN);                                        // Creates\Opens the first data output file
+  
+  while (writer.SD_open(create_filename(), STATUS_PIN) == 0) {
+    file_count++;  
+  }
   file_count++;
 
   writer.SD_allocate_buffer();                                              // Allocating buffers is done outside of constructor so that there is more free memory during the reading of the config file
@@ -83,25 +86,31 @@ void setup() {
 void loop() {
   
   if (writer.write_count >= WRITE_LIMIT || 
-      writer.byte_count >= BYTE_LIMIT) {                                    // Checks if a new file needs to be created
+      writer.byte_count >= BYTE_LIMIT || STOP_FLAG) {                                    // Checks if a new file needs to be created or if the stop button has been pressed
     
     if (writer.SD_close(&flush_count, last_flush_count)) {
       Serial.print("File");
       Serial.print(file_count, DEC);
       Serial.println(" size limit reached");
 
-      if (file_count >= FILE_LIMIT) {
-        close_sd();                                                         // If file count passes file limit stop to avoid writing more than SD card size
+      if (file_count >= FILE_LIMIT || STOP_FLAG) {
+        TIMSK5 &=~ (1 << OCIE5A);                                           // Disable interrupts
+        Serial.println("END");
+        digitalWrite(STATUS_PIN, HIGH);
+        while (1) delay(100);                                               // If file count passes file limit or stop button pusehd, stop writing to SD 
       }
       
-      writer.SD_open(create_filename(), STATUS_PIN);                                    // Create and open new data file
+      while (writer.SD_open(create_filename(), STATUS_PIN) == 0) {
+        file_count++;  
+      }
       file_count++;
+      
       writer.byte_count = 0;
       writer.write_count = 0;
     }
   }
   
-  if (writer.SD_save_bin(contact_list, &flush_count)) {
+  if (writer.SD_save_bin(contact_list, &flush_count) && !STOP_FLAG) {
     last_flush_count -= 512;
   }
 }
@@ -211,17 +220,26 @@ void read_ADC(void) {
  * Return: NONE
  ********************************************************************/
 void close_sd(void) {
-  do {
-    if (writer.SD_save_bin(contact_list, &flush_count)) {
-      last_flush_count -= 512;
-    }
-  } while(!writer.SD_close(&flush_count, last_flush_count));
-  
-  TIMSK5 &=~ (1 << OCIE5A);
-
-  digitalWrite(STATUS_PIN, HIGH);
-  Serial.println("END");
-  while(1) delay(1000);
+  STOP_FLAG = 1;
+// Serial.println("Closing...");
+//  do {
+//    if (writer.SD_save_bin(contact_list, &flush_count)) {
+//      last_flush_count -= 512;
+//      if (last_flush_count <= 0) {
+//        last_flush_count = 1;
+//      }
+//    }
+//    Serial.print(flush_count);
+//    Serial.print("\t\t");
+//    Serial.println(last_flush_count);
+//  } while(!writer.SD_close(&flush_count, last_flush_count));
+//  
+//  TIMSK5 &=~ (1 << OCIE5A);
+//
+//  digitalWrite(STATUS_PIN, HIGH);
+//  Serial.println("END");
+//  delay(5000);
+//  while(1) delay(1000);
 }
 
 

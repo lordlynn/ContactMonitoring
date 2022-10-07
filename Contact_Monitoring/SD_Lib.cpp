@@ -35,7 +35,6 @@ void SD_Lib::SD_allocate_buffer() {
   buffer = (byte*)malloc(4224);
 }
 
-
 /*********************************************************************
  * Function: SD_open
  * Description: This function tries to open a file with the given name 
@@ -43,16 +42,21 @@ void SD_Lib::SD_allocate_buffer() {
  *                open file. 
  *                
  * Param: String (filename) - name of file to open
- * Return: NONE
+ * Return: int true if file opened, false if file could not be opened
  ********************************************************************/
-void SD_Lib::SD_open(String filename, int status_pin) {
+int SD_Lib::SD_open(String filename, int status_pin) {
+  if (SD.exists(filename)) {
+    return 0;                                                             // Return 0 if file already exists
+  }
+  
   data_out = SD.open(filename, O_WRITE | O_TRUNC | O_CREAT);
   if (data_out == 0) {
     Serial.println("Failed to open data output file");
-    // TODO - If filename fails try to open using different filename
-    digitalWrite(status_pin, HIGH);
-    while(1);                                                               // If the file failed to open stay in loop forever (status LED on)
+    digitalWrite(status_pin, HIGH);                 
+    return 0;                                                             // Return 0 if fails to open file
   }
+  
+  return 1;
 }
 
 
@@ -101,7 +105,7 @@ bool SD_Lib::SD_close(uint16_t *flush_count, int last_flush_count) {
  ********************************************************************/            
 bool SD_Lib::SD_save_bin(contact *contact_list, uint16_t *flush_count) {
   uint8_t index;
-
+  
   if (*flush_count >= 512) {
     byte *temp = (byte*)malloc(512);                                        // Copy data that needs to be saved to temporary buffer
     memcpy(temp, buffer, 512);

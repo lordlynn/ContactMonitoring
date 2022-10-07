@@ -65,7 +65,7 @@ class SD_Lib {
      * Return: NONE
      ********************************************************************/
     void SD_allocate_buffer();
-
+    
     /*********************************************************************
      * Function: SD_open
      * Description: This function tries to open a file with the given name 
@@ -73,9 +73,9 @@ class SD_Lib {
      *                open file. 
      *                
      * Param: String (filename) - name of file to open
-     * Return: NONE
+     * Return: int true if file opened, false if file could not be opened
      ********************************************************************/
-    void SD_open(String filename, int status_pin);
+    int SD_open(String filename, int status_pin);
         
     /*********************************************************************
      * Function: SD_close
