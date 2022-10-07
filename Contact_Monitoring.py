@@ -8,6 +8,7 @@
 #                   should be executed from a terminal window so that 
 #                   options may be used (-g is required, -h for help).
 #-----------------------------------------------------------------------
+from pickle import NONE
 import numpy as np
 import time
 import multiprocessing as mp
@@ -19,9 +20,12 @@ import Contact_Timing as CT
 
 FLOAT_TO_LONG = 10000000                                                                    # Comes from the arduino code. doubles were stored as uint32_t * 10000000 instead of a double
 IN_FILENAME = "TEST"                                                                        # Name of input file stem to read from
+FILE_TYPE = ".bin"                                                                          # Input file type. Can be .bin or .csv
 OUT_FILENAME = "output"                                                                     # Name stem to give to the output csv file
 GROUPS = None                                                                               # List of group IDs to decode data for
 DIGITAL = None                                                                              # List of contact IDs for digital contacts. Digital contacts have 3 states 1 being closed, 2 being transition, and 3 being open.
+ANALOG_STATES = None                                                                        # Stores the voltage ranges for analog contact states. USed to update state data 
+DIGITAL_STATES = None                                                                       # Stores the voltage ranges for digital contact states. Used to update the state data 
 raw_data = None                                                                             # Byte array read directly from BIN file
 refined_data = []                                                                           # Stores the data as a 1D list of dictionaries  
 data = []                                                                                   # Stores the data seperated by contact ID 
@@ -29,14 +33,14 @@ in_file_count = 1
 
 
 #-----------------------------------------------------------------------
-# Function: read_file()
+# Function: read_bin()
 # Description: This function reads the entire contents of the 
 #   binary data file and stores it in a numpy array.
 #
 # param: void
 # return: void                                                          
 #-----------------------------------------------------------------------
-def read_file(filename):
+def read_bin(filename):
     global raw_data, in_file_count
     raw_data = None                                                                         # Stores the raw binary data from the input file
     dtype = np.dtype('B')
@@ -49,6 +53,39 @@ def read_file(filename):
 
     fp.close()
 
+#-----------------------------------------------------------------------
+# Function: read_csv()
+# Description: This function reads a previously decoded .csv data file
+#                   back in for analysis. 
+# param: void
+# return: void                                                          
+#-----------------------------------------------------------------------
+def read_csv(filename):
+    global data
+    for g in GROUPS:
+        for c in g:
+            data.append([])
+
+    with open(filename, "r") as fp:
+        reader = csv.reader(fp)
+        
+        for row in reader:
+            if (row[0] == "Group"):                                                         # Skip first row which contains header
+                continue       
+            
+            i = 0
+            while (i < len(row)):
+                if (row[i] == ''):
+                    data[i // 6].append(temp)
+                    temp = None
+                    i += 1
+                    continue
+
+
+                temp = [int(row[i]), int(row[i+1]), float(row[i+3]),
+                        int(row[i+4]), float(row[i+2])]
+                i += 5
+    pass
 
 #-----------------------------------------------------------------------
 # Function: count_files()
@@ -67,7 +104,7 @@ def count_files():
 
     for i in range(255):
         try:
-            filename = IN_FILENAME + str(i+1) + ".bin" 
+            filename = IN_FILENAME + str(i+1) + FILE_TYPE
             with open(filename, "rb") as fp:
                 pass
         except Exception as e:
@@ -166,6 +203,33 @@ def separate_data():
 
             data.append(temp)
     del refined_data
+
+#-----------------------------------------------------------------------
+# Function: update_states()
+# Description: This function updates the states of contacts based on 
+#                   provided voltage ranges.
+#
+# param: void
+# return: void                                                          
+#-----------------------------------------------------------------------
+def update_states():
+    for group in data:
+        for datum in group:
+            datum[3] = 0                                                                    # Set state to 0
+
+            if (datum[0] in DIGITAL):                                                       # If this contact was called out as a digital contact 
+                for i in range(len(DIGITAL_STATES) - 1):
+                    if (datum[2] > DIGITAL_STATES[i] and 
+                        datum[2] < DIGITAL_STATES[i+1]):
+                        datum[3] = i + 1
+                        break
+            else:                                                                           # If it is an analog contact 
+                for i in range(len(ANALOG_STATES) - 1):
+                    if (datum[2] > ANALOG_STATES[i] and 
+                        datum[2] < ANALOG_STATES[i+1]):
+                        datum[3] = i + 1
+                        break
+                                
 
 
 #-----------------------------------------------------------------------
@@ -278,17 +342,25 @@ def usage():
 #        (int[]) digital - List of contact IDs for digital contacts
 # return: void
 #-----------------------------------------------------------------------
-def convert_file(in_filename, out_filename, groups, q, flag, args, digital):
-    global GROUPS, DIGITAL
+def convert_file(in_filename, out_filename, groups, q, flag, args, digital, 
+                 file_type, analog_states, digital_states):
+    
+    global GROUPS, DIGITAL, ANALOG_STATES, DIGITAL_STATES
+    ANALOG_STATES = analog_states
+    DIGITAL_STATES = digital_states
     DIGITAL = digital
     GROUPS = groups
-    read_file(in_filename)
-       
-    convert_data(out_filename)
-            
-    separate_data()    
 
-    write_to_csv(out_filename)
+    if (file_type == ".bin"):                                                                # If being read from binary file, need to decode, organize, and export to csv
+        read_bin(in_filename)
+        convert_data(out_filename)  
+        separate_data()    
+        write_to_csv(out_filename)
+    
+    elif (file_type == ".csv"):                                                             # If reading csv back in no need to generate the same file again
+        read_csv(in_filename)
+        if (ANALOG_STATES is not None):                                                      # If Analog states have been defined, update the states in the csv file
+            update_states()
 
     if (flag): 
         ct = CT.Contact_Timing(GROUPS, DIGITAL, data)
@@ -308,67 +380,73 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital):
 # return: void
 #-----------------------------------------------------------------------
 def main():
-    global OUT_FILENAME, IN_FILENAME, GROUPS, DIGITAL
+    global OUT_FILENAME, IN_FILENAME, FILE_TYPE, GROUPS, DIGITAL
     global raw_data, refined_data, data, in_file_count, in_file_list
     timing_analysis_flag = False
     process_limit = 2                                                                       # default limit for how many files can be parallelized at a time. letting limit go to inf slows execution drastically due to memory and cpu usage
     timing_args = None
-    try:
-        opts, args = getopt.getopt(sys.argv[1:], "ho:i:g:p:t:d:", 
-                                   ["help", "output=", "input=", "groups=", 
-                                    "pLimit=", "time=", "digital="])
-    except getopt.GetoptError as err:
-        # print help information and exit:
-        print(err)                                                                          # Will print something like "option -a not recognized"
-        usage()
+    # try:
+    #     opts, args = getopt.getopt(sys.argv[1:], "ho:i:g:p:t:d:", 
+    #                                ["help", "output=", "input=", "groups=", 
+    #                                 "pLimit=", "time=", "digital="])
+    # except getopt.GetoptError as err:
+    #     # print help information and exit:
+    #     print(err)                                                                          # Will print something like "option -a not recognized"
+    #     usage()
 
-    for o, a in opts:
-        if o in ("-h", "--help"):
-            usage()
-        elif o in ("-t", "--time"):
-            timing_analysis_flag = True
+    # for o, a in opts:
+    #     if o in ("-h", "--help"):
+    #         usage()
+    #     elif o in ("-t", "--time"):
+    #         timing_analysis_flag = True
 
-            timing_args = list(map(int, a.split(",")))
+    #         timing_args = list(map(int, a.split(",")))
 
-            if (len(timing_args) != 4):                                                     # Timing analysis function takes 4 user parameters
-                print("Timing analysis expects 4 arguments: check_time, " +
-                      "press_debounce, unpress_debounce, timeout")
-                exit()
-            for arg in timing_args:
-                if (arg == None or arg <= 0):                                               # if any of the arguments are invalid raise exception
-                    print("Timing analysis parameters must be greater than 0")
-                    exit()
+    #         if (len(timing_args) != 4):                                                     # Timing analysis function takes 4 user parameters
+    #             print("Timing analysis expects 4 arguments: check_time, " +
+    #                   "press_debounce, unpress_debounce, timeout")
+    #             exit()
+    #         for arg in timing_args:
+    #             if (arg == None or arg <= 0):                                               # if any of the arguments are invalid raise exception
+    #                 print("Timing analysis parameters must be greater than 0")
+    #                 exit()
 
-        elif o in ("-o", "--output"):
-            OUT_FILENAME = a
-        elif o in ("-i", "--input"):
-            IN_FILENAME = a
-        elif o in ("-g", "--groups"):
-            GROUPS = list(map(str, a.split(";")))
-            GROUPS = [list(map(int, i.split(","))) for i in GROUPS] 
+    #     elif o in ("-o", "--output"):
+    #         OUT_FILENAME = a
+    #     elif o in ("-i", "--input"):
+    #         IN_FILENAME = a
+    #     elif o in ("-g", "--groups"):
+    #         GROUPS = list(map(str, a.split(";")))
+    #         GROUPS = [list(map(int, i.split(","))) for i in GROUPS] 
 
-        elif o in ("-p", "--pLimit"):
-            try:
-                process_limit = int(a)
-                if (process_limit < 1): raise Exception
-                elif (process_limit > 20): raise Exception
-            except:
-                print("**Error: Invalid process limit of " + str(a) + ". Limit must fall within 1-20.\n")
-                exit()    
-        elif o in ("-d", "--digital"):
-              DIGITAL = list(map(int, a.split(",")))
-        else:
-            assert False, "unhandled option"
+    #     elif o in ("-p", "--pLimit"):
+    #         try:
+    #             process_limit = int(a)
+    #             if (process_limit < 1): raise Exception
+    #             elif (process_limit > 20): raise Exception
+    #         except:
+    #             print("**Error: Invalid process limit of " + str(a) + ". Limit must fall within 1-20.\n")
+    #             exit()    
+    #     elif o in ("-d", "--digital"):
+    #           DIGITAL = list(map(int, a.split(",")))
+    #     else:
+    #         assert False, "unhandled option"
 
-    if (len(opts) == 0): usage()
+    # if (len(opts) == 0): usage()
 
 
-    # DIGITAL = [12, 22, 32, 42]  #[12, 22] # 32, 42]
-    # GROUPS = [[10, 11, 12], [20, 21, 22], [30, 31, 32], [40, 41, 42]] # [10, 11, 12], [20, 21, 22], [30, 31, 32],     
-    # IN_FILENAME = "./test"
-    # OUT_FILENAME = "./test"
-    # timing_analysis_flag = True
-    # timing_args = [7, 5, 5, 30]
+    DIGITAL = [12, 22, 32, 42]  #[12, 22] # 32, 42]
+    GROUPS = [[10, 11, 12], [20, 21, 22], [30, 31, 32], [40, 41, 42]] # [10, 11, 12], [20, 21, 22], [30, 31, 32],     
+    IN_FILENAME = "./TEST"
+    FILE_TYPE = ".csv"
+    OUT_FILENAME = "./test"
+
+    ANALOG_STATES = [0.000, 2.200, 2.700, 3.700, 4.200, 5.00]
+    DIGITAL_STATES = [0.000, 1.500, 3.500, 5.000]
+
+    timing_analysis_flag = True
+    
+    timing_args = [7, 5, 5, 30]
 
     if (GROUPS == None):
         print("**Error: Must include list of group IDs. Try -g \"10, 11, 12\"\n")
@@ -383,11 +461,12 @@ def main():
     while (file_num <= in_file_count + 1):                                                  # While there are still files to convert
         if (process_count < process_limit and file_num < in_file_count):                    # Start converting the next file if more processes are allowed to be started
             q[file_num] = mp.Queue()                                                        # Queue is shared and protected memory for multiprocessing to use. the queue will be written to so that the parent thread can terminate child processes
-            in_filename = IN_FILENAME + str(in_file_list[file_num]) + ".bin"    
+            in_filename = IN_FILENAME + str(in_file_list[file_num]) + FILE_TYPE    
             out_filename = OUT_FILENAME + str(in_file_list[file_num]) + ".csv"
             p[file_num] = mp.Process(target=convert_file,                                   # Create a new process to convert an input file
                              args=(in_filename, out_filename, GROUPS, q[file_num], 
-                             timing_analysis_flag, timing_args, DIGITAL,),
+                             timing_analysis_flag, timing_args, DIGITAL, FILE_TYPE, 
+                             ANALOG_STATES, DIGITAL_STATES),
                              daemon=True, name=in_filename)
             p[file_num].start()
             
