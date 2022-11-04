@@ -1,6 +1,16 @@
 import csv
+from operator import add
 
 class Contact_Timing:
+    state_LUT = [[-99, -99, 5, 5, 5, -99, -99, -99, -99],
+                 [-99, -99, 5, 5, 5, -99, -99, -99, -99],
+                 [3, 3, -99, 5, 7, 7, 7, -99, -99],
+                 [3, 3, 3, -99, 7, 7, 7, -99, -99],
+                 [3, 3, 1, 1, -99, 7, 7, 5, 5],
+                 [-99, -99, 1, 1, 1, -99, 7, 5, 5],
+                 [-99, -99, 1, 1, 1, 3, -99, 5, 5],
+                 [-99, -99, -99, -99, 3, 3, 3, -99, -99],
+                 [-99, -99, -99, -99, 3, 3, 3, -99, -99]]
     GROUPS = None
     DIGITAL = None
     data = None
@@ -9,6 +19,419 @@ class Contact_Timing:
         self.GROUPS = GROUPS
         self.DIGITAL = DIGITAL
         self.data = data
+
+    def determine_state(self, states):   
+        if (len(states) < 4):
+            return -1
+
+        if (states[-1] != 9):                                             # If the state is odd, a valid state, then the next state should be open (9)
+            return 9
+        
+        # print(states, end="\n")
+        
+        if (states[-1] == 9):
+            while (9 in states):                                                                # Remove open states at index 1 and 3 
+                states.remove(9)
+            return self.state_LUT[states[-2]][states[-1]]
+
+        raise Exception("No anticipated state was returned")
+
+    
+    def save_sliding_summary(self, filename, good_states, bad_states, zone_totals, bad_deltas):
+        temp = []
+        newline = []                                                                    # Stores a csv file row that uses "-" and "|" to separate the data visually
+
+        # Generate the CSV newline based on how many contacts are being analyzed
+        for group in range(len(self.GROUPS)):
+            for contact in range(len(self.GROUPS[group]) + 3):
+                newline.append("---------------------------")
+
+            newline.append("|")
+
+        # Creates a file using same naming convention as the output csv files but with "_summary" added to the end 
+        with open(filename[0:-4] + "_summary.csv" , 'w', newline='\n') as csvfile:
+            csv_writer = csv.writer(csvfile, delimiter=',')
+            
+            # Write contact ID headers
+            for group in range(len(self.GROUPS)):
+                temp.append("Contact: ")
+                for contact in range(len(self.GROUPS[group])):
+                    temp.append(self.GROUPS[group][contact])
+                
+                temp.append("")
+                temp.append("")
+                temp.append("|")
+
+            csv_writer.writerow(temp)
+            csv_writer.writerow(newline)                                                # Write newline in csv
+            temp = []
+            shift = 0
+            
+            for i in range(len(self.GROUPS)):
+                temp.append("Zone count")
+                temp.append("")
+                temp.append("")
+                temp.append("")
+                temp.append("|")
+            
+            csv_writer.writerow(temp)
+            temp = []
+            
+            for i in range(10):    
+                for group in range(len(self.GROUPS)):
+                    temp.append("Zone: " + str(i))
+                    for contact in range(len(self.GROUPS[group])):
+                        temp.append(zone_totals[contact + shift][i])
+                    
+                    temp.append("")
+                    temp.append("")
+                    temp.append("|")
+                    shift += len(self.GROUPS[group])
+
+                csv_writer.writerow(temp)
+                temp = []
+                shift = 0
+
+            csv_writer.writerow(newline)
+
+
+            for group in range(len(self.GROUPS)):
+                temp.append("Good States:")
+                temp.append("")
+                temp.append(sum(good_states[group]))
+                temp.append("")
+                temp.append("|")
+            
+            csv_writer.writerow(temp)
+            temp = []
+
+
+            for i in range(5):    
+                for group in range(len(self.GROUPS)):
+                    temp.append("Zone: " + str(i*2 + 1))
+                    for contact in range(len(self.GROUPS[group])):
+                        temp.append(good_states[contact + shift][i])
+                    
+                    temp.append("")
+                    temp.append("")
+                    temp.append("|")
+                    shift += len(self.GROUPS[group])
+
+                csv_writer.writerow(temp)
+                temp = []
+                shift = 0
+            csv_writer.writerow(newline)
+
+
+            for group in range(len(self.GROUPS)):
+                temp.append("Bad States:")
+                temp.append("")
+                temp.append(len(bad_states[group]))
+                temp.append("")
+                temp.append("|")
+
+            csv_writer.writerow(temp)
+            temp = []
+
+            
+            for group in range(len(self.GROUPS)):
+                temp.append("-Type-")
+                temp.append("-Row-")
+                temp.append("-Expected-")
+                temp.append("-Actual-")
+                temp.append("|")
+
+            csv_writer.writerow(temp)
+            temp = []
+
+            maximum = 0
+            for i in bad_states:
+                if (len(i) > maximum):
+                    maximum = len(i)
+
+            for i in range(maximum):
+                for group in range(len(self.GROUPS)):
+                    if (len(bad_states[group]) > i):
+                        temp.append(bad_states[group][i]["type"])
+                        temp.append(bad_states[group][i]["ind"])
+                        temp.append(bad_states[group][i]["antState"])
+                        temp.append(bad_states[group][i]["state"])
+                        temp.append("|")
+                    else:
+                        temp.append("")
+                        temp.append("")
+                        temp.append("")
+                        temp.append("")
+                        temp.append("|")
+
+                csv_writer.writerow(temp)
+                temp = []
+
+            csv_writer.writerow(newline)
+                
+            temp.append("Bad Deltas:")
+            temp.append("")
+            temp.append(len(bad_deltas))
+            temp.append("")
+            temp.append("|")
+            csv_writer.writerow(temp)
+            temp = []
+
+            temp.append("-Delta(ms)-")
+            temp.append("")
+            temp.append("-Row-")
+            temp.append("")
+            temp.append("|")
+            csv_writer.writerow(temp)
+            temp = []
+
+            for i in bad_deltas:
+                temp.append(i["delta"])
+                temp.append("")
+                temp.append(i["ind"])
+                temp.append("")
+                temp.append("|")
+                csv_writer.writerow(temp)
+                temp = []
+
+            csv_writer.writerow(newline)
+            
+            
+
+
+    def sliding_contacts(self, filename, check_time=7, debounce=5):
+        maximum = len(max(self.data))
+        bad_states = [[] for i in range(len(self.GROUPS))]
+        good_states = [[0 for j in range(5)] for i in range(len(self.GROUPS))]
+
+        bad_deltas = []
+
+        zone_current = [[0 for i in range(10)] for j in range(len(self.GROUPS))]
+        zone_totals = [[0 for i in range(10)] for j in range(len(self.GROUPS))]
+
+        state = [[0, 0] for i in range(len(self.GROUPS))]                           
+        last = [0 for i in range(len(self.GROUPS))]
+
+        for i in range(maximum):                                                                # Iterates through the rows of data
+            if (self.data[0][i][1] - self.data[0][i-1][1] >= check_time and i > 0):
+                bad_deltas.append({"ind": i+2, "delta": self.data[0][i][1] - self.data[0][i-1][1]})
+
+            for group in range(len(self.GROUPS)):                                               # these two loops iterate through all group IDs 
+                
+                # determine what the next expected state is
+                # test_state = self.determine_state(copy.deepcopy(state[group]))
+                if (group == 0 and i == 97497-2):
+                    pass
+                if (self.data[group][i][3] == 0):
+                    zone_current[group][0] += 1
+                    zone_totals[group] = list(map(add, zone_totals[group], zone_current[group]))
+                    zone_totals[group][0] -= zone_current[group][0]                             # Removes the current count from the totals to avoid over counting. for ex after 3 consecutive 0 states, to total would be 1 + 2 + 3 = 6 not 3.
+                    zone_current[group] = [zone_current[group][0], 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+                    if (zone_current[group][0] >= debounce and last[group] != 0):
+                        # state[group] = state[group][1:]
+                        last[group] = 0
+                        state[group].append(0)
+                        bad_states[group].append({"type": "zone", "ind": i+2, "antState": -1, "state": 0})
+                        
+                elif (self.data[group][i][3] == 1):
+                    zone_current[group][1] += 1
+                    zone_totals[group] = list(map(add, zone_totals[group], zone_current[group]))
+                    zone_totals[group][1] -= zone_current[group][1]
+                    zone_current[group] = [0, zone_current[group][1], 0, 0, 0, 0, 0, 0, 0, 0]
+
+                    if (zone_current[group][1] >= debounce and last[group] != 1):
+                        # state[group] = state[group][1:]
+                        ant = self.determine_state(state[group][-4:])
+                        if (state[group][-2] == 1):           # If the circuit opens then returns to the same state, report contact issue
+                            if (state[group][-1] == 9):
+                                bad_states[group].append({"type": "contact", "ind": i+2, "antState": "N/A", "state": 1})
+                                del state[group][-1]                                        # if states o 1 -> 9 -> 1 delete the unexpected 9 state 
+                            else:
+                                bad_states[group].append({"type": "order", "ind": i+2, "antState": ant, "state": 1})
+                                if (state[group][-1] % 2 != 0):
+                                    state[group].append(1)
+                                else:
+                                    del state[group][-1]
+                                    
+                        elif (ant != 1):
+                            bad_states[group].append({"type": "order", "ind": i+2, "antState": ant, "state": 1})
+                            state[group].append(1)
+                        else:
+                            good_states[group][1 // 2] += 1
+                            state[group].append(1)                        
+                        last[group] = 1
+                        
+
+                elif (self.data[group][i][3] == 2):
+                    zone_current[group][2] += 1
+                    zone_totals[group] = list(map(add, zone_totals[group], zone_current[group]))
+                    zone_totals[group][2] -= zone_current[group][2]
+                    zone_current[group] = [0, 0, zone_current[group][2], 0, 0, 0, 0, 0, 0, 0]
+
+                    if (zone_current[group][2] >= debounce and last[group] != 2):
+                        # state[group] = state[group][1:]
+                        last[group] = 2
+                        state[group].append(2)
+                        bad_states[group].append({"type": "zone", "ind": i+2, "antState": -1, "state": 2})
+
+                elif (self.data[group][i][3] == 3):
+                    zone_current[group][3] += 1
+                    zone_totals[group] = list(map(add, zone_totals[group], zone_current[group]))
+                    zone_totals[group][3] -= zone_current[group][3]
+                    zone_current[group] = [0, 0, 0, zone_current[group][3], 0, 0, 0, 0, 0, 0]
+
+                    if (zone_current[group][3] >= debounce and last[group] != 3):
+                        ant = self.determine_state(state[group][-4:])
+                        
+                        if (state[group][-2] == 3):
+                            if (state[group][-1] == 9):
+                                bad_states[group].append({"type": "contact", "ind": i+2, "antState": "N/A", "state": 3})
+                                del state[group][-1]
+                            else:
+                                bad_states[group].append({"type": "order", "ind": i+2, "antState": ant, "state": 3})
+                                if (state[group][-1] % 2 != 0):
+                                    state[group].append(3)
+                                else:
+                                    del state[group][-1]
+
+                        elif (ant != 3):
+                            bad_states[group].append({"type": "order", "ind": i+2, "antState": ant, "state": 3})
+                            state[group].append(3)
+                        else:
+                            good_states[group][3 // 2] += 1
+                            state[group].append(3)  
+                        # state[group] = state[group][1:]
+                        last[group] = 3
+                        
+
+                elif (self.data[group][i][3] == 4):
+                    zone_current[group][4] += 1
+                    zone_totals[group] = list(map(add, zone_totals[group], zone_current[group]))
+                    zone_totals[group][4] -= zone_current[group][4]
+                    zone_current[group] = [0, 0, 0, 0, zone_current[group][4], 0, 0, 0, 0, 0]
+
+                    if (zone_current[group][4] >= debounce and last[group] != 4):
+                        # state[group] = state[group][1:]
+                        last[group] = 4
+                        state[group].append(4)
+                        bad_states[group].append({"type": "zone", "ind": i+2, "antState": -1, "state": 4})
+
+                elif (self.data[group][i][3] == 5):
+                    zone_current[group][5] += 1
+                    zone_totals[group] = list(map(add, zone_totals[group], zone_current[group]))
+                    zone_totals[group][5] -= zone_current[group][5]
+                    zone_current[group] = [0, 0, 0, 0, 0, zone_current[group][5], 0, 0, 0, 0]
+
+                    if (zone_current[group][5] >= debounce and last[group] != 5):
+                        ant = self.determine_state(state[group][-4:])
+                        if (state[group][-2] == 5):
+                            if (state[group][-1] == 9):
+                                bad_states[group].append({"type": "contact", "ind": i+2, "antState": "N/A", "state": 5})
+                                del state[group][-1]
+                            else:
+                                bad_states[group].append({"type": "order", "ind": i+2, "antState": ant, "state": 5})
+                                if (state[group][-1] % 2 != 0):
+                                    state[group].append(5) 
+                                else:
+                                    del state[group][-1]
+
+                        elif (ant != 5):
+                            bad_states[group].append({"type": "order", "ind": i+2, "antState": ant, "state": 5})
+                            state[group].append(5)
+                        else:
+                            good_states[group][5 // 2] += 1
+                            state[group].append(5)
+                        # state[group] = state[group][1:]
+                        last[group] = 5
+                        
+
+                elif (self.data[group][i][3] == 6):
+                    zone_current[group][6] += 1
+                    zone_totals[group] = list(map(add, zone_totals[group], zone_current[group]))
+                    zone_totals[group][6] -= zone_current[group][6]
+                    zone_current[group] = [0, 0, 0, 0, 0, 0, zone_current[group][6], 0, 0, 0]
+
+                    if (zone_current[group][6] >= debounce and last[group] != 6):
+                        # state[group] = state[group][1:]
+                        last[group] = 6
+                        state[group].append(6)
+                        bad_states[group].append({"type": "zone", "ind": i+2, "antState": -1, "state": 6})
+
+                elif (self.data[group][i][3] == 7):
+                    zone_current[group][7] += 1
+                    zone_totals[group] = list(map(add, zone_totals[group], zone_current[group]))
+                    zone_totals[group][7] -= zone_current[group][7]
+                    zone_current[group] = [0, 0, 0, 0, 0, 0, 0, zone_current[group][7], 0, 0]
+
+                    if (zone_current[group][7] >= debounce and last[group] != 7):
+                        ant = self.determine_state(state[group][-4:])
+                        
+                        if (state[group][-2] == 7):
+                            if (state[group][-1] == 9):
+                                bad_states[group].append({"type": "contact", "ind": i+2, "antState": "N/A", "state": 7})
+                                del state[group][-1]
+                            else:
+                                bad_states[group].append({"type": "order", "ind": i+2, "antState": ant, "state": 7})
+                                if (state[group][-1] % 2 != 0):
+                                    state[group].append(7)
+                                else:
+                                    del state[group][-1]
+                            
+                        elif (ant != 7):
+                            bad_states[group].append({"type": "order", "ind": i+2, "antState": ant, "state": 7})
+                            state[group].append(7)
+                        else:
+                            good_states[group][7 // 2] += 1
+                            state[group].append(7)
+                        # state[group] = state[group][1:]
+                        last[group] = 7
+                        
+
+                elif (self.data[group][i][3] == 8):
+                    zone_current[group][8] += 1
+                    zone_totals[group] = list(map(add, zone_totals[group], zone_current[group]))
+                    zone_totals[group][8] -= zone_current[group][8]
+                    zone_current[group] = [0, 0, 0, 0, 0, 0, 0, 0, zone_current[group][8], 0]
+
+                    if (zone_current[group][8] >= debounce and last[group] != 8):
+                        # state[group] = state[group][1:]
+                        last[group] = 8
+                        state[group].append(8)
+                        bad_states[group].append({"type": "zone", "ind": i+2, "antState": -1, "state": 8})
+
+                elif (self.data[group][i][3] == 9):
+                    zone_current[group][9] += 1
+                    zone_totals[group] = list(map(add, zone_totals[group], zone_current[group]))
+                    zone_totals[group][9] -= zone_current[group][9]
+                    zone_current[group] = [0, 0, 0, 0, 0, 0, 0, 0, 0, zone_current[group][9]]
+
+                    if (zone_current[group][9] >= debounce and last[group] != 9):
+                        # state[group] = state[group][1:]
+                        ant = self.determine_state(state[group][-4:])
+                        if (ant != 9):
+                            bad_states[group].append({"type": "order", "ind": i+2, "antState": ant, "state": 9})
+                        else:
+                            good_states[group][9 // 2] += 1
+                        last[group] = 9
+                        state[group].append(9)
+        
+        for group in range(len(self.GROUPS)):
+            zone_totals[group] = list(map(add, zone_totals[group], zone_current[group]))
+
+
+        # state_totals = [[] for i in range(10)]
+
+        # for group in range(len(self.GROUPS)):
+        #     for i in range(10):
+        #         state_totals[group][i] = state[group].count(i)
+
+        # The first 4 bad states reported are due to no state history existing yet so ignore them
+        for i in range(len(bad_states)):
+            bad_states[i] = bad_states[i][3:]
+
+        self.save_sliding_summary(filename, good_states, bad_states, zone_totals, bad_deltas)    
+
 
     #-----------------------------------------------------------------------
     # Function: timing_analysis()
