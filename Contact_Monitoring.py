@@ -14,7 +14,7 @@ import csv
 import getopt
 import sys
 import Contact_Timing as CT
-
+import logging
 
 FLOAT_TO_LONG = 10000000                                                                    # Comes from the arduino code. doubles were stored as uint32_t * 10000000 instead of a double
 IN_FILENAME = "TEST"                                                                        # Name of input file stem to read from
@@ -32,6 +32,27 @@ refined_data = []                                                               
 data = []                                                                                   # Stores the data separated by contact ID 
 in_file_count = 1
 indHash = None                                                                              # Stores a hash table with group ids as keys and their respective index in data array as the data
+
+
+# Logging: https://stackoverflow.com/questions/19425736/how-to-redirect-stdout-and-stderr-to-logger-in-python
+class StreamToLogger(object):
+    """
+    Fake file-like stream object that redirects writes to a logger instance.
+    """
+    def __init__(self, logger, level):
+       self.logger = logger
+       self.level = level
+       self.linebuf = ''
+
+    def write(self, buf):
+       for line in buf.rstrip().splitlines():
+          self.logger.log(self.level, line.rstrip())
+
+    def flush(self):
+        pass
+
+
+
 
 #-----------------------------------------------------------------------
 # Function: read_bin()
@@ -61,6 +82,7 @@ def group_to_index(g):
             if (GROUPS[i][j] == g):
                 return ind + j   
         ind += len(GROUPS[i])
+
 #-----------------------------------------------------------------------
 # Function: read_csv()
 # Description: This function reads a previously decoded .csv data file
@@ -451,6 +473,8 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital,
     DIGITAL = digital
     GROUPS = groups
 
+
+
     gen_hash()
 
 
@@ -693,4 +717,14 @@ def main():
 
 
 if __name__ == "__main__":
+    logging.basicConfig(
+            level=logging.DEBUG,
+            format='%(asctime)s:%(levelname)s:%(name)s:%(message)s',
+            filename='log.log',
+            filemode='w'
+            )
+    log = logging.getLogger('Logger')
+    sys.stdout = StreamToLogger(log, logging.INFO)
+    sys.stderr = StreamToLogger(log, logging.ERROR)
+
     main()
