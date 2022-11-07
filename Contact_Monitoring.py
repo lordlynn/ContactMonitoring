@@ -192,6 +192,8 @@ def convert_data(filename):
     temp_voltage = 0
     temp_state = 0
 
+    save_flag = True                                                                        # Delimiter 0xEE also appeared in the temperature int leading to errors in decoding data. Thi lag fixes those issues
+
     while (True):
         i += 1
         if (raw_data[i] == 0xEE):
@@ -204,7 +206,7 @@ def convert_data(filename):
     i = 0
         
     while (i < len(raw_data)):                                                              # A while loop is used instead of a for loop so that i can be incremented inside of the loop
-        if (raw_data[i] == 0xEE):                                                           # If a new observation is starting save the last one and get ready for next
+        if (raw_data[i] == 0xEE and save_flag):                                                           # If a new observation is starting save the last one and get ready for next
             if (i > 0):                                                                     # Don't try to save the temp data on the first iteration. Files always start with "EE" so skip first
                 temp = {"timestamp": temp_timestamp, 
                         "group": temp_group,
@@ -212,9 +214,10 @@ def convert_data(filename):
                         "state": temp_state,
                         "temperature": temp_temperature}
                 refined_data.append(temp)
-
+            save_flag = False
             i += 1
         else:                                                                               # If the data is not a delimiter reformat it back to its original type
+            save_flag = True
             try:
 
                 if (LEGACY):
@@ -234,7 +237,7 @@ def convert_data(filename):
             
                     temp_state = raw_data[i + 9]                                               
                     i += 10
-
+                    
                 else:
                     temp_temperature =  int.from_bytes([raw_data[i], raw_data[i+1]],
                                     "big", signed=True) / 100.0                             # temperature was saves as int16_t multiplied by 10 to preserve decimal vals
@@ -283,13 +286,15 @@ def separate_data():
     data = [[] for groups in GROUPS for contact in groups]
 
     for datum in refined_data:
-
-        if (len(data[indHash[datum['group']]]) > 0 and data[indHash[datum['group']]][-1][1] != datum['timestamp']):             # if the last and current data point have the same timestamp, igrnore one. This was a double write error by arduino
-            data[indHash[datum['group']]].append([datum['group'], datum['timestamp'], 
-                        datum['voltage'], datum['state'], datum['temperature']])
-        elif (len(data[indHash[datum['group']]]) == 0):
-            data[indHash[datum['group']]].append([datum['group'], datum['timestamp'], 
-                        datum['voltage'], datum['state'], datum['temperature']])
+        try:
+            if (len(data[indHash[datum['group']]]) > 0 and data[indHash[datum['group']]][-1][1] != datum['timestamp']):             # if the last and current data point have the same timestamp, igrnore one. This was a double write error by arduino
+                data[indHash[datum['group']]].append([datum['group'], datum['timestamp'], 
+                            datum['voltage'], datum['state'], datum['temperature']])
+            elif (len(data[indHash[datum['group']]]) == 0):
+                data[indHash[datum['group']]].append([datum['group'], datum['timestamp'], 
+                            datum['voltage'], datum['state'], datum['temperature']])
+        except Exception as e:
+            print(str(e))
 #-----------------------------------------------------------------------
 # Function: update_states()
 # Description: This function updates the states of contacts based on 
@@ -370,7 +375,7 @@ def write_to_csv(filename):
 # Not technically a pipe, processes write the status of their operations to this file 
 # so that the GUI program can give a progress bar. Ideally things are just printed to the stdout
 # but I was unable to get the GUI program to read the stdout while the process is still executing
-# FILE FORMAT: two digit int represents percent completion. process completion status are delimited by commas
+# FILE FORMAT: two digit int represents percent completion. process completion status are delimited by commas.
 # 
 # ex: 5 processes with 2 available threads
 #
@@ -560,84 +565,84 @@ def main():
     timing_args = None
     DIGITAL = []                                                                            # If no digital contacts are used empty list will persist
     
-    try:
-        opts, args = getopt.getopt(sys.argv[1:], "ho:i:g:p:t:d:f:s", 
-                                   ["help", "output=", "input=", "groups=", 
-                                    "pLimit=", "time=", "digital=", "files=", "sliding="])
-    except getopt.GetoptError as err:
-        # print help information and exit:
-        print(err)                                                                          # Will print something like "option -a not recognized"
-        usage()
+    # try:
+    #     opts, args = getopt.getopt(sys.argv[1:], "ho:i:g:p:t:d:f:s", 
+    #                                ["help", "output=", "input=", "groups=", 
+    #                                 "pLimit=", "time=", "digital=", "files=", "sliding="])
+    # except getopt.GetoptError as err:
+    #     # print help information and exit:
+    #     print(err)                                                                          # Will print something like "option -a not recognized"
+    #     usage()
 
-    for o, a in opts:
-        if o in ("-h", "--help"):
-            usage()
-        elif o in ("-t", "--time"):
-            timing_analysis_flag = True
+    # for o, a in opts:
+    #     if o in ("-h", "--help"):
+    #         usage()
+    #     elif o in ("-t", "--time"):
+    #         timing_analysis_flag = True
 
-            timing_args = list(map(int, a.split(",")))
+    #         timing_args = list(map(int, a.split(",")))
 
-            if (len(timing_args) != 4):                                                     # Timing analysis function takes 4 user parameters
-                print("Timing analysis expects 4 arguments: check_time, " +
-                      "press_debounce, unpress_debounce, timeout")
-                exit()
-            for arg in timing_args:
-                if (arg == None or arg <= 0):                                               # if any of the arguments are invalid raise exception
-                    print("Timing analysis parameters must be greater than 0")
-                    exit()
-        elif o in ("-s", "--sliding"):
-            CONTACT_TYPE = "SL"
-        elif o in ("-o", "--output"):
-            OUT_FILENAME = a
-        elif o in ("-i", "--input"):
-            IN_FILENAME = a
-        elif o in ("-g", "--groups"):
-            GROUPS = list(map(str, a.split(";")))
-            while ('' in GROUPS):
-                GROUPS.remove('')
-            try:                                                                            # Fails to split at commas when using sliding contacts
-                GROUPS = [list(map(int, i.split(","))) for i in GROUPS] 
-            except:
-                GROUPS = [list(map(int, GROUPS))]
+    #         if (len(timing_args) != 4):                                                     # Timing analysis function takes 4 user parameters
+    #             print("Timing analysis expects 4 arguments: check_time, " +
+    #                   "press_debounce, unpress_debounce, timeout")
+    #             exit()
+    #         for arg in timing_args:
+    #             if (arg == None or arg <= 0):                                               # if any of the arguments are invalid raise exception
+    #                 print("Timing analysis parameters must be greater than 0")
+    #                 exit()
+    #     elif o in ("-s", "--sliding"):
+    #         CONTACT_TYPE = "SL"
+    #     elif o in ("-o", "--output"):
+    #         OUT_FILENAME = a
+    #     elif o in ("-i", "--input"):
+    #         IN_FILENAME = a
+    #     elif o in ("-g", "--groups"):
+    #         GROUPS = list(map(str, a.split(";")))
+    #         while ('' in GROUPS):
+    #             GROUPS.remove('')
+    #         try:                                                                            # Fails to split at commas when using sliding contacts
+    #             GROUPS = [list(map(int, i.split(","))) for i in GROUPS] 
+    #         except:
+    #             GROUPS = [list(map(int, GROUPS))]
 
-        elif o in ("-p", "--pLimit"):
-            try:
-                process_limit = int(a)
-                if (process_limit < 1): raise Exception
-                elif (process_limit > 20): raise Exception
-            except:
-                print("**Error: Invalid process limit of " + str(a) + ". Limit must fall within 1-20.\n")
-                exit()    
-        elif o in ("-d", "--digital"):
-            if (len(a) == 0):
-                DIGITAL = []
-            else:
-                DIGITAL = list(map(int, a.split(",")))
-        elif o in ("-f", "--files"):
-            FILES = a.replace("/", "\\").split(",")
-        else:
-            assert False, "unhandled option"
+    #     elif o in ("-p", "--pLimit"):
+    #         try:
+    #             process_limit = int(a)
+    #             if (process_limit < 1): raise Exception
+    #             elif (process_limit > 20): raise Exception
+    #         except:
+    #             print("**Error: Invalid process limit of " + str(a) + ". Limit must fall within 1-20.\n")
+    #             exit()    
+    #     elif o in ("-d", "--digital"):
+    #         if (len(a) == 0):
+    #             DIGITAL = []
+    #         else:
+    #             DIGITAL = list(map(int, a.split(",")))
+    #     elif o in ("-f", "--files"):
+    #         FILES = a.replace("/", "\\").split(",")
+    #     else:
+    #         assert False, "unhandled option"
 
-    if (len(opts) == 0): usage()
+    # if (len(opts) == 0): usage()
 
 
-    # # DIGITAL = [12, 22, 32, 42]  #[12, 22] # 32, 42]
+    DIGITAL = [12, 22, 32, 42]  #[12, 22] # 32, 42]
     
-    # #GROUPS = [[10, 11, 12], [20, 21, 22], [30, 31, 32], [40, 41, 42]] 
+    GROUPS = [[10, 11, 12], [20, 21, 22], [30, 31, 32], [40, 41, 42]] 
     # GROUPS = [[10], [20], [30], [40], [50], [60]]   
-    # FILES = [".\\", ".\\TEST1.bin"]
+    FILES = ["C:\\Users\\lynnz\\OneDrive - JSJ Corporation\\Documents\\Contact Monitoring System\\NEW\\ContactMonitoring\\GUI\\cycles355-415k", "C:\\Users\\lynnz\\OneDrive - JSJ Corporation\\Documents\\Contact Monitoring System\\NEW\\ContactMonitoring\\cycles355-415k\\HPB31.BIN"]
 
-    # # IN_FILENAME = "./TEST"
-    # # FILE_TYPE = ".csv"
-    # # OUT_FILENAME = "./test"
-    # timing_analysis_flag = True
+    # IN_FILENAME = "./TEST"
+    # FILE_TYPE = ".csv"
+    # OUT_FILENAME = "./test"
+    timing_analysis_flag = True
     # CONTACT_TYPE = "SL"
-    # timing_args = [7, 5, 5, 30]
+    timing_args = [7, 5, 5, 30]
 
 
-    # # DEFAULT PUSHBUTTON STATES. ONLY USED FOR REASSIGNING STATES. if left uninitialized, state reassignment is disabled
-    # # ANALOG_STATES = [1.000, 1.300, 2.850, 3.150, 5.400, 5.900, 7.150, 7.550, 12.000, 13.500]
-    # # DIGITAL_STATES = [0.000, 1.500, 3.500, 5.000]
+    # DEFAULT PUSHBUTTON STATES. ONLY USED FOR REASSIGNING STATES. if left uninitialized, state reassignment is disabled
+    # ANALOG_STATES = [1.000, 1.300, 2.850, 3.150, 5.400, 5.900, 7.150, 7.550, 12.000, 13.500]
+    # DIGITAL_STATES = [0.000, 1.500, 3.500, 5.000]
 
  
     if (GROUPS == None):
@@ -651,13 +656,14 @@ def main():
         in_file_count = len(FILES)-1
         in_file_list = FILES[1:]
 
-    
     try:
         with open("./status.txt", "w+") as fp:
             fp.write(("00," * (in_file_count - 1)) + "00")
     except Exception as e:
         print(str(e))
         exit()
+    
+    print("Status file created")
 
     file_num = 0
     p = [None] * in_file_count
@@ -717,6 +723,7 @@ def main():
 
 
 if __name__ == "__main__":
+    print("Initializing...")
     logging.basicConfig(
             level=logging.DEBUG,
             format='%(asctime)s:%(levelname)s:%(name)s:%(message)s',
@@ -726,5 +733,8 @@ if __name__ == "__main__":
     log = logging.getLogger('Logger')
     sys.stdout = StreamToLogger(log, logging.INFO)
     sys.stderr = StreamToLogger(log, logging.ERROR)
+    print("Logging started")
+
+    
 
     main()
