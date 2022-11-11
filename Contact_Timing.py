@@ -200,7 +200,11 @@ class Contact_Timing:
 
 
     def sliding_contacts(self, filename, check_time=7, debounce=5):
-        maximum = len(max(self.data))
+        maximum = 0
+        for i in self.data:
+            if (i.shape[0] > maximum):
+                maximum = i.shape[0]
+        
         bad_states = [[] for i in range(len(self.GROUPS))]
         good_states = [[0 for j in range(5)] for i in range(len(self.GROUPS))]
 
@@ -464,7 +468,10 @@ class Contact_Timing:
         unpressed = 4
         high_out = 5
 
-        maximum = len(max(self.data))
+        maximum = 0
+        for i in self.data:
+            if (i.shape[0] > maximum):
+                maximum = i.shape[0]
         
         total = 0
         for group in self.GROUPS:                                                           # Iterates through the contact groups    
@@ -699,7 +706,8 @@ class Contact_Timing:
 
                 # Check state_count_cur lists to debounce pressed and unpressed states
                 for i in range(group_len):
-        
+                    if (len(self.data[i + shift]) - 1 < adjusted_index):                              # Handles index errors from the contacts having different numbers of samples recorded 
+                        continue
                     cur_contact_state[i + shift] = self.data[i + shift][adjusted_index][3]                          # Record current contact states for later comparison to avoid state oscillation
         
                     if (pressed_count_cur[i + shift] >= press_debounce):                                    # If the contact has been in the pressed sate consecutively for "press_debounce_limit" iterations
@@ -784,7 +792,7 @@ class Contact_Timing:
                 shift += group_len
             if (index == 0):                                                                                # On the first iteration check that the first timestamp for every contact is aligned
                 for i in range(len(delta_time)):
-                    if (max(delta_time) - delta_time[i] > 3):
+                    if (max(delta_time) - delta_time[i] >= 2):
                         timing_offset_shift[i] += 1
                         print(out_filename + " Timing offset applied to contact: " + 
                                     str(i) + " to align timestamps during analysis")

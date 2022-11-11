@@ -16,6 +16,9 @@ import sys
 import Contact_Timing as CT
 import logging
 
+# import gc
+import copy
+
 FLOAT_TO_LONG = 10000000                                                                    # Comes from the arduino code. doubles were stored as uint32_t * 10000000 instead of a double
 IN_FILENAME = "TEST"                                                                        # Name of input file stem to read from
 FILE_TYPE = ".bin"                                                                          # Input file type. Can be .bin or .csv
@@ -75,13 +78,13 @@ def read_bin(filename):
 
     fp.close()
 
-def group_to_index(g):
-    ind = 0
-    for i in range(len(GROUPS)):
-        for j in range(len(GROUPS[i])):
-            if (GROUPS[i][j] == g):
-                return ind + j   
-        ind += len(GROUPS[i])
+# def group_to_index(g):
+#     ind = 0
+#     for i in range(len(GROUPS)):
+#         for j in range(len(GROUPS[i])):
+#             if (GROUPS[i][j] == g):
+#                 return ind + j   
+#         ind += len(GROUPS[i])
 
 #-----------------------------------------------------------------------
 # Function: read_csv()
@@ -92,10 +95,10 @@ def group_to_index(g):
 #-----------------------------------------------------------------------
 def read_csv(filename):
     global data
-    for g in GROUPS:
-        for c in g:
-            data.append([])
+    data = [[] for groups in GROUPS for contact in groups]
+
     first = [False for i in range(len(data))]
+
     with open(filename, "r") as fp:
         reader = csv.reader(fp)
         
@@ -116,7 +119,7 @@ def read_csv(filename):
                     if (temp == None):
                         i += 1
                         continue
-                    ind = group_to_index(temp[0])
+                    ind = indHash[temp[0]]
                     if (first[ind] and data[ind][-1][1] != temp[1]):
                         data[ind].append(temp)
                     elif (first[ind] == False):
@@ -127,16 +130,16 @@ def read_csv(filename):
                     continue
 
                 if (legacy):
-                    temp = [int(row[i]), int(row[i+1]), float(row[i+2]),
-                            int(row[i+3]), 0.0]
+                    temp = [float(row[i]), float(row[i+1]), float(row[i+2]),
+                            float(row[i+3]), 0.0]
                     i += 4
                 else: 
-                    temp = [int(row[i]), int(row[i+1]), float(row[i+3]),
-                            int(row[i+4]), float(row[i+2])]
+                    temp = [float(row[i]), float(row[i+1]), float(row[i+3]),
+                            float(row[i+4]), float(row[i+2])]
                     i += 5
 
             if (temp is not None):                                                          # Add last group if row index is exceeded before 
-                ind = group_to_index(temp[0])
+                ind = indHash[temp[0]]
                 if (first[ind] and data[ind][-1][1] != temp[1]):
                     data[ind].append(temp)
                 elif (first[ind] == False):
@@ -182,9 +185,13 @@ def count_files():
 # return: void
 #-----------------------------------------------------------------------
 def convert_data(filename):
-    global raw_data
-    global refined_data
-    refined_data = []
+    global raw_data, data #, refined_data
+    data = [[] for groups in GROUPS for contact in groups]
+    
+    
+    # data = np.ndarray((len(GROUPS) * len(GROUPS[0])), dtype=np.ndarray)
+    # data.fill(np.array([[]], dtype=np.ndarray))
+
     i = 0    
     temp_temperature = 0                               
     temp_timestamp = 0
@@ -213,7 +220,15 @@ def convert_data(filename):
                         "voltage": temp_voltage,
                         "state": temp_state,
                         "temperature": temp_temperature}
-                refined_data.append(temp)
+                
+                if (len(data[indHash[temp['group']]]) > 0 and data[indHash[temp['group']]][-1][1] != temp['timestamp']):             # if the last and current data point have the same timestamp, igrnore one. This was a double write error by arduino
+                    data[indHash[temp['group']]].append([temp['group'], temp['timestamp'], 
+                                 temp['voltage'], temp['state'], temp['temperature']])
+                elif (len(data[indHash[temp['group']]]) == 0):
+                    data[indHash[temp['group']]].append([temp['group'], temp['timestamp'], 
+                                 temp['voltage'], temp['state'], temp['temperature']])
+
+
             save_flag = False
             i += 1
         else:                                                                               # If the data is not a delimiter reformat it back to its original type
@@ -265,11 +280,17 @@ def convert_data(filename):
                 "voltage": temp_voltage,
                 "state": temp_state,
                 "temperature": temp_temperature}
-        refined_data.append(temp)
+
+        if (len(data[indHash[temp['group']]]) > 0 and data[indHash[temp['group']]][-1][1] != temp['timestamp']):             # if the last and current data point have the same timestamp, igrnore one. This was a double write error by arduino
+            data[indHash[temp['group']]].append([temp['group'], temp['timestamp'], 
+                         temp['voltage'], temp['state'], temp['temperature']])
+        elif (len(data[indHash[temp['group']]]) == 0):
+            data[indHash[temp['group']]].append([temp['group'], temp['timestamp'], 
+                         temp['voltage'], temp['state'], temp['temperature']])
+    
     except Exception as e:
         print("At end of decoding: " + str(e))
 
-    del raw_data # Free the memory used to hold the raw byte array
 
 
 #-----------------------------------------------------------------------
@@ -295,6 +316,7 @@ def separate_data():
                             datum['voltage'], datum['state'], datum['temperature']])
         except Exception as e:
             print(str(e))
+    
 #-----------------------------------------------------------------------
 # Function: update_states()
 # Description: This function updates the states of contacts based on 
@@ -449,7 +471,7 @@ def usage():
     print("use 5 zones where 2 is pressed and 4 is open. Digital contact analysis however uses 3 zones where zone 1 is pressed and 3 is open.")
     print("If this option is not used for digital contacts the analysis WILL FAIL due to incorrect states.")
     print("\t\t\tExample: -d \"12, 22, 32, 43\"")
-    exit()
+    sys.exit()
 
 
 #-----------------------------------------------------------------------
@@ -472,22 +494,32 @@ def usage():
 def convert_file(in_filename, out_filename, groups, q, flag, args, digital, 
                  file_type, analog_states, digital_states, contact_type, pn):
     
-    global GROUPS, DIGITAL, ANALOG_STATES, DIGITAL_STATES
+    global GROUPS, DIGITAL, ANALOG_STATES, DIGITAL_STATES, data
     ANALOG_STATES = analog_states
     DIGITAL_STATES = digital_states
     DIGITAL = digital
     GROUPS = groups
 
+    t = time.time()
 
+
+    logging.basicConfig(
+            level=logging.DEBUG,
+            format='%(asctime)s:%(levelname)s:%(name)s:%(message)s',
+            filename='log.log',
+            filemode='a')
+    
+    log = logging.getLogger('Logger')
+    sys.stdout = StreamToLogger(log, logging.INFO)
+    sys.stderr = StreamToLogger(log, logging.ERROR)
 
     gen_hash()
 
 
-    # calculate total number of required function calls for progress update purposes
     completion_total = 0
     completion_step = 0
     if (file_type.lower() == ".bin"):
-        completion_total += 4 
+        completion_total += 3 
         if (analog_states is not None):
             completion_total += 1
     elif (file_type.lower() == ".csv"):
@@ -500,16 +532,26 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital,
 
     if (file_type.lower() == ".bin"):                                                                # If being read from binary file, need to decode, organize, and export to csv
         read_bin(in_filename)
+        print("read bin: " + str(time.time() - t))
+    
         completion_step += 1
         write_pipe(pn, completion_step / completion_total)
 
-        convert_data(out_filename)  
-        completion_step += 1
-        write_pipe(pn, completion_step / completion_total)
+        convert_data(in_filename)
+        data = np.array(data, dtype=np.float32)
 
-        separate_data() 
+        print("convert: " + str(time.time() - t))
+    
         completion_step += 1
         write_pipe(pn, completion_step / completion_total)
+        
+        
+        # separate_data()
+        # print("separate: " + str(time.time() - t))
+        # time.sleep(3)
+
+        # completion_step += 1
+        # write_pipe(pn, completion_step / completion_total)
 
         if (ANALOG_STATES is not None):                                                      # If Analog states have been defined, update the states in the csv file
             update_states()
@@ -517,11 +559,15 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital,
             write_pipe(pn, completion_step / completion_total)
 
         write_to_csv(out_filename)    
+        print("write to csv: " + str(time.time() - t))
+
         completion_step += 1
         write_pipe(pn, completion_step / completion_total)
     
     elif (file_type.lower() == ".csv"):                                                             # If reading csv back in no need to generate the same file again
         read_csv(in_filename)
+        data = np.array(data, dtype=np.float32)
+
         completion_step += 1
         write_pipe(pn, completion_step / completion_total)
 
@@ -530,6 +576,7 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital,
             completion_step += 1
             write_pipe(pn, completion_step / completion_total)
 
+            # data = np.array(data, dtype=np.float32)
             write_to_csv(out_filename)
             completion_step += 1
             write_pipe(pn, completion_step / completion_total)
@@ -540,10 +587,12 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital,
     elif (contact_type == "SL" and flag):
         ct = CT.Contact_Timing(GROUPS, None, data)
         ct.sliding_contacts(out_filename, args[0], args[1])
-    
+
     completion_step += 1
     write_pipe(pn, completion_step / completion_total)
-
+    
+    print("killing: " + str(time.time() - t))
+    
     while True:
         q.put(1)
         time.sleep(0.5)
@@ -558,96 +607,101 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital,
 # return: void
 #-----------------------------------------------------------------------
 def main():
-    global OUT_FILENAME, IN_FILENAME, FILE_TYPE, GROUPS, DIGITAL, FILES, CONTACT_TYPE
+    global OUT_FILENAME, IN_FILENAME, FILE_TYPE, GROUPS, DIGITAL, FILES, CONTACT_TYPE, ANALOG_STATES, DIGITAL_STATES
     global raw_data, refined_data, data, in_file_count, in_file_list
     timing_analysis_flag = False
     process_limit = 2                                                                       # default limit for how many files can be parallelized at a time. letting limit go to inf slows execution drastically due to memory and cpu usage
     timing_args = None
     DIGITAL = []                                                                            # If no digital contacts are used empty list will persist
     
-    # try:
-    #     opts, args = getopt.getopt(sys.argv[1:], "ho:i:g:p:t:d:f:s", 
-    #                                ["help", "output=", "input=", "groups=", 
-    #                                 "pLimit=", "time=", "digital=", "files=", "sliding="])
-    # except getopt.GetoptError as err:
-    #     # print help information and exit:
-    #     print(err)                                                                          # Will print something like "option -a not recognized"
-    #     usage()
+    try:
+        opts, args = getopt.getopt(sys.argv[1:], "ho:i:g:p:t:d:f:su:", 
+                                   ["help", "output=", "input=", "groups=", 
+                                    "pLimit=", "time=", "digital=", "files=", 
+                                    "sliding=", "update="])
+    except getopt.GetoptError as err:
+        # print help information and exit:
+        print("opts: " + str(opts))
+        print("OPTION ERROR: " + str(err))                                                                          # Will print something like "option -a not recognized"
+        usage()
 
-    # for o, a in opts:
-    #     if o in ("-h", "--help"):
-    #         usage()
-    #     elif o in ("-t", "--time"):
-    #         timing_analysis_flag = True
+    for o, a in opts:
+        if o in ("-h", "--help"):
+            usage()
+        elif o in ("-t", "--time"):
+            timing_analysis_flag = True
 
-    #         timing_args = list(map(int, a.split(",")))
+            timing_args = list(map(int, a.split(",")))
 
-    #         if (len(timing_args) != 4):                                                     # Timing analysis function takes 4 user parameters
-    #             print("Timing analysis expects 4 arguments: check_time, " +
-    #                   "press_debounce, unpress_debounce, timeout")
-    #             exit()
-    #         for arg in timing_args:
-    #             if (arg == None or arg <= 0):                                               # if any of the arguments are invalid raise exception
-    #                 print("Timing analysis parameters must be greater than 0")
-    #                 exit()
-    #     elif o in ("-s", "--sliding"):
-    #         CONTACT_TYPE = "SL"
-    #     elif o in ("-o", "--output"):
-    #         OUT_FILENAME = a
-    #     elif o in ("-i", "--input"):
-    #         IN_FILENAME = a
-    #     elif o in ("-g", "--groups"):
-    #         GROUPS = list(map(str, a.split(";")))
-    #         while ('' in GROUPS):
-    #             GROUPS.remove('')
-    #         try:                                                                            # Fails to split at commas when using sliding contacts
-    #             GROUPS = [list(map(int, i.split(","))) for i in GROUPS] 
-    #         except:
-    #             GROUPS = [list(map(int, GROUPS))]
+            if (len(timing_args) != 4):                                                     # Timing analysis function takes 4 user parameters
+                print("Timing analysis expects 4 arguments: check_time, " +
+                      "press_debounce, unpress_debounce, timeout")
+                sys.exit()
+            for arg in timing_args:
+                if (arg == None or arg <= 0):                                               # if any of the arguments are invalid raise exception
+                    print("Timing analysis parameters must be greater than 0")
+                    sys.exit()
+        elif o in ("-s", "--sliding"):
+            CONTACT_TYPE = "SL"
+        elif o in ("-o", "--output"):
+            OUT_FILENAME = a
+        elif o in ("-i", "--input"):
+            IN_FILENAME = a
+        elif o in ("-g", "--groups"):
+            GROUPS = list(map(str, a.split(";")))
+            while ('' in GROUPS):
+                GROUPS.remove('')
+            try:                                                                            # Fails to split at commas when using sliding contacts
+                GROUPS = [list(map(int, i.split(","))) for i in GROUPS] 
+            except:
+                GROUPS = [list(map(int, GROUPS))]
 
-    #     elif o in ("-p", "--pLimit"):
-    #         try:
-    #             process_limit = int(a)
-    #             if (process_limit < 1): raise Exception
-    #             elif (process_limit > 20): raise Exception
-    #         except:
-    #             print("**Error: Invalid process limit of " + str(a) + ". Limit must fall within 1-20.\n")
-    #             exit()    
-    #     elif o in ("-d", "--digital"):
-    #         if (len(a) == 0):
-    #             DIGITAL = []
-    #         else:
-    #             DIGITAL = list(map(int, a.split(",")))
-    #     elif o in ("-f", "--files"):
-    #         FILES = a.replace("/", "\\").split(",")
-    #     else:
-    #         assert False, "unhandled option"
+        elif o in ("-p", "--pLimit"):
+            try:
+                process_limit = int(a)
+                if (process_limit < 1): raise Exception
+                elif (process_limit > 20): raise Exception
+            except:
+                print("**Error: Invalid process limit of " + str(a) + ". Limit must fall within 1-20.\n")
+                sys.exit()    
+        elif o in ("-d", "--digital"):
+            if (len(a) == 0):
+                DIGITAL = []
+            else:
+                DIGITAL = list(map(int, a.split(",")))
+        elif o in ("-f", "--files"):
+            FILES = a.replace("/", "\\").split(",")
+        elif o in ("-u", "--update"):
+            ANALOG_STATES = list(map(int, (a.split(";")[0].split(","))))
+            if (len(a.split(";")) >= 2):
+                DIGITAL_STATES = list(map(int, (a.split(";")[1].split(","))))
+        else:
+            assert False, "unhandled option"
 
-    # if (len(opts) == 0): usage()
+    if (len(opts) == 0): usage()
 
 
-    DIGITAL = [12, 22, 32, 42]  #[12, 22] # 32, 42]
+    # DIGITAL = [12, 22, 32, 42]  #[12, 22] # 32, 42]
     
-    GROUPS = [[10, 11, 12], [20, 21, 22], [30, 31, 32], [40, 41, 42]] 
-    # GROUPS = [[10], [20], [30], [40], [50], [60]]   
-    FILES = ["C:\\Users\\lynnz\\OneDrive - JSJ Corporation\\Documents\\Contact Monitoring System\\NEW\\ContactMonitoring\\GUI\\cycles355-415k", "C:\\Users\\lynnz\\OneDrive - JSJ Corporation\\Documents\\Contact Monitoring System\\NEW\\ContactMonitoring\\cycles355-415k\\HPB31.BIN"]
+    # GROUPS = [[10, 11, 12], [20, 21, 22], [30, 31, 32], [40, 41, 42]] 
+    # # GROUPS = [[10], [20], [30], [40], [50], [60]]   
+    # FILES = ["./", "C:\\Users\\lynnz\\OneDrive - JSJ Corporation\\Documents\\Contact Monitoring System\\NEW\\ContactMonitoring\\HPB5.bin"]
 
-    # IN_FILENAME = "./TEST"
-    # FILE_TYPE = ".csv"
-    # OUT_FILENAME = "./test"
-    timing_analysis_flag = True
-    # CONTACT_TYPE = "SL"
-    timing_args = [7, 5, 5, 30]
+    # # IN_FILENAME = "./TEST"
+    # # FILE_TYPE = ".csv"
+    # # OUT_FILENAME = "./test"
+    # timing_analysis_flag = True
+    # # CONTACT_TYPE = "SL"
+    # timing_args = [7, 5, 5, 30]
 
-
-    # DEFAULT PUSHBUTTON STATES. ONLY USED FOR REASSIGNING STATES. if left uninitialized, state reassignment is disabled
-    # ANALOG_STATES = [1.000, 1.300, 2.850, 3.150, 5.400, 5.900, 7.150, 7.550, 12.000, 13.500]
-    # DIGITAL_STATES = [0.000, 1.500, 3.500, 5.000]
+    # # DEFAULT PUSHBUTTON STATES. ONLY USED FOR REASSIGNING STATES. if left uninitialized, state reassignment is disabled
+    # # ANALOG_STATES = [1.000, 1.300, 2.850, 3.150, 5.400, 5.900, 7.150, 7.550, 12.000, 13.500]
+    # # DIGITAL_STATES = [0.000, 1.500, 3.500, 5.000]
 
  
     if (GROUPS == None):
         print("**Error: Must include list of group IDs. Try -g \"10, 11, 12\"\n")
-        exit()
+        sys.exit()
 
     if (FILES is None):
         count_files()
@@ -661,7 +715,7 @@ def main():
             fp.write(("00," * (in_file_count - 1)) + "00")
     except Exception as e:
         print(str(e))
-        exit()
+        sys.exit()
     
     print("Status file created")
 
@@ -719,11 +773,13 @@ def main():
                 break
           
     print("\nEND\n")
-    exit()
+    sys.exit()
 
 
 if __name__ == "__main__":
-    print("Initializing...")
+    mp.freeze_support()             # Needed when compiled to exe
+    print("starting...")
+    
     logging.basicConfig(
             level=logging.DEBUG,
             format='%(asctime)s:%(levelname)s:%(name)s:%(message)s',
