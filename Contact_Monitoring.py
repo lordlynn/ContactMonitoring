@@ -16,8 +16,7 @@ import sys
 import Contact_Timing as CT
 import logging
 
-# import gc
-import copy
+
 
 FLOAT_TO_LONG = 10000000                                                                    # Comes from the arduino code. doubles were stored as uint32_t * 10000000 instead of a double
 IN_FILENAME = "TEST"                                                                        # Name of input file stem to read from
@@ -184,7 +183,7 @@ def count_files():
 # param: void
 # return: void
 #-----------------------------------------------------------------------
-def convert_data(filename):
+def convert_data(filename, q, pl):
     global raw_data, data #, refined_data
     data = [[] for groups in GROUPS for contact in groups]
     
@@ -201,6 +200,14 @@ def convert_data(filename):
 
     save_flag = True                                                                        # Delimiter 0xEE also appeared in the temperature int leading to errors in decoding data. Thi lag fixes those issues
 
+    try:
+        raw_data[i] = raw_data[i]
+    except Exception as e:
+        print("No data was read in from file")
+        while True:
+            q.put(1)                            # if no data was read in from file signal to parent that this process needs to terminate
+            time.sleep(0.5)
+
     while (True):
         i += 1
         if (raw_data[i] == 0xEE):
@@ -211,9 +218,18 @@ def convert_data(filename):
     else:
         LEGACY = False
     i = 0
-        
+    
+    # 2 processes should trigger after return from this func - 1/2 * len(raw_data) * x = raw_data
+    # 3 processes should trigger 50% through this func       - 1/3 * len(raw_data) * x = 2/3 raw_data
+    # 4 processes should trigger 25% through this func       - 1/4 * len(raw_data) * x = 1/2 raw_data
+    # x = 2, f(p) = (1/pl) 2 * len(raw_data)
+    new_process = (2 / pl) * len(raw_data)
+
     while (i < len(raw_data)):                                                              # A while loop is used instead of a for loop so that i can be incremented inside of the loop
-        if (raw_data[i] == 0xEE and save_flag):                                                           # If a new observation is starting save the last one and get ready for next
+        if (i >= new_process):
+            q.put(0)                                                                        # Signal to parent that the next process is ready to start
+            new_process = len(raw_data) + 1000                                              # reset new_process so that it cannot be true again this function call
+        if (raw_data[i] == 0xEE and save_flag):                                             # If a new observation is starting save the last one and get ready for next
             if (i > 0):                                                                     # Don't try to save the temp data on the first iteration. Files always start with "EE" so skip first
                 temp = {"timestamp": temp_timestamp, 
                         "group": temp_group,
@@ -492,16 +508,13 @@ def usage():
 # return: void
 #-----------------------------------------------------------------------
 def convert_file(in_filename, out_filename, groups, q, flag, args, digital, 
-                 file_type, analog_states, digital_states, contact_type, pn):
+                 file_type, analog_states, digital_states, contact_type, pn, pl):
     
     global GROUPS, DIGITAL, ANALOG_STATES, DIGITAL_STATES, data
     ANALOG_STATES = analog_states
     DIGITAL_STATES = digital_states
     DIGITAL = digital
     GROUPS = groups
-
-    t = time.time()
-
 
     logging.basicConfig(
             level=logging.DEBUG,
@@ -532,40 +545,36 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital,
 
     if (file_type.lower() == ".bin"):                                                                # If being read from binary file, need to decode, organize, and export to csv
         read_bin(in_filename)
-        print("read bin: " + str(time.time() - t))
+        print(str(mp.current_process().name) + " : Done reading bin")
     
         completion_step += 1
         write_pipe(pn, completion_step / completion_total)
 
-        convert_data(in_filename)
+        convert_data(in_filename, q, pl)
+        if (pl == 2):
+            q.put(0)                                                                                # Signal 0 tells parent to start next process. Next process started after array conversion to efficiently use RAM 
         data = np.array(data, dtype=np.float32)
 
-        print("convert: " + str(time.time() - t))
+        print(str(mp.current_process().name) + " : Done converting file")
     
         completion_step += 1
         write_pipe(pn, completion_step / completion_total)
-        
-        
-        # separate_data()
-        # print("separate: " + str(time.time() - t))
-        # time.sleep(3)
 
-        # completion_step += 1
-        # write_pipe(pn, completion_step / completion_total)
-
-        if (ANALOG_STATES is not None):                                                      # If Analog states have been defined, update the states in the csv file
+        if (ANALOG_STATES is not None):                                                             # If Analog states have been defined, update the states in the csv file
             update_states()
+            print(str(mp.current_process().name) + " : Done updating states")
             completion_step += 1
             write_pipe(pn, completion_step / completion_total)
 
         write_to_csv(out_filename)    
-        print("write to csv: " + str(time.time() - t))
+        print(str(mp.current_process().name) + " : Done writing data to csv")
 
         completion_step += 1
         write_pipe(pn, completion_step / completion_total)
     
     elif (file_type.lower() == ".csv"):                                                             # If reading csv back in no need to generate the same file again
         read_csv(in_filename)
+        print(str(mp.current_process().name) + " : Done reading csv")
         data = np.array(data, dtype=np.float32)
 
         completion_step += 1
@@ -573,11 +582,13 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital,
 
         if (ANALOG_STATES is not None):                                                      # If Analog states have been defined, update the states in the csv file
             update_states()
+            print(str(mp.current_process().name) + " : Done updating states")
             completion_step += 1
             write_pipe(pn, completion_step / completion_total)
 
             # data = np.array(data, dtype=np.float32)
             write_to_csv(out_filename)
+            print(str(mp.current_process().name) + " : Done writing data to csv")
             completion_step += 1
             write_pipe(pn, completion_step / completion_total)
 
@@ -591,7 +602,7 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital,
     completion_step += 1
     write_pipe(pn, completion_step / completion_total)
     
-    print("killing: " + str(time.time() - t))
+    print(str(mp.current_process().name) + " : Done processing, entering loop")
     
     while True:
         q.put(1)
@@ -672,9 +683,9 @@ def main():
         elif o in ("-f", "--files"):
             FILES = a.replace("/", "\\").split(",")
         elif o in ("-u", "--update"):
-            ANALOG_STATES = list(map(int, (a.split(";")[0].split(","))))
+            ANALOG_STATES = list(map(float, (a.split(";")[0].split(","))))
             if (len(a.split(";")) >= 2):
-                DIGITAL_STATES = list(map(int, (a.split(";")[1].split(","))))
+                DIGITAL_STATES = list(map(float, (a.split(";")[1].split(","))))
         else:
             assert False, "unhandled option"
 
@@ -685,7 +696,10 @@ def main():
     
     # GROUPS = [[10, 11, 12], [20, 21, 22], [30, 31, 32], [40, 41, 42]] 
     # # GROUPS = [[10], [20], [30], [40], [50], [60]]   
-    # FILES = ["./", "C:\\Users\\lynnz\\OneDrive - JSJ Corporation\\Documents\\Contact Monitoring System\\NEW\\ContactMonitoring\\HPB5.bin"]
+    # FILES = ["./", "C:\\Users\\lynnz\\OneDrive - JSJ Corporation\\Documents\\Contact Monitoring System\\NEW\\ContactMonitoring\\HPB4.bin", 
+    #                "C:\\Users\\lynnz\\OneDrive - JSJ Corporation\\Documents\\Contact Monitoring System\\NEW\\ContactMonitoring\\HPB5.bin",
+    #                "C:\\Users\\lynnz\\OneDrive - JSJ Corporation\\Documents\\Contact Monitoring System\\NEW\\ContactMonitoring\\HPB6.bin",
+    #                "C:\\Users\\lynnz\\OneDrive - JSJ Corporation\\Documents\\Contact Monitoring System\\NEW\\ContactMonitoring\\HPB7.bin"]
 
     # # IN_FILENAME = "./TEST"
     # # FILE_TYPE = ".csv"
@@ -723,36 +737,42 @@ def main():
     p = [None] * in_file_count
     q = [None] * in_file_count
     process_count = 0
+    start_flag = 1
 
     while (file_num <= in_file_count + 1):                                                  # While there are still files to convert
-        if (process_count < process_limit and file_num < in_file_count):                    # Start converting the next file if more processes are allowed to be started
+        if (process_count < process_limit and file_num < in_file_count and start_flag >= 1):                    # Start converting the next file if more processes are allowed to be started
             q[file_num] = mp.Queue()                                                        # Queue is shared and protected memory for multiprocessing to use. the queue will be written to so that the parent thread can terminate child processes
             
             if (FILES is None):
                 in_filename = IN_FILENAME + str(in_file_list[file_num]) + FILE_TYPE    
                 out_filename = OUT_FILENAME + str(in_file_list[file_num]) + ".csv"
+                pName = str(in_file_list[file_num])
             else:
                 in_filename = in_file_list[file_num]
                 FILE_TYPE = "." + in_filename.rsplit(".", 1)[1]
                 out_filename = OUT_FILENAME + (in_file_list[file_num].rsplit("\\", 1))[1].split(".")[0] + ".csv"
-
+                pName = (in_file_list[file_num].rsplit("\\", 1))[1].split(".")[0]
 
             p[file_num] = mp.Process(target=convert_file,                                   # Create a new process to convert an input file
                              args=(in_filename, out_filename, GROUPS, q[file_num], 
                              timing_analysis_flag, timing_args, DIGITAL, FILE_TYPE, 
-                             ANALOG_STATES, DIGITAL_STATES, CONTACT_TYPE, file_num),
-                             daemon=True, name=in_filename)
+                             ANALOG_STATES, DIGITAL_STATES, CONTACT_TYPE, file_num, process_limit),
+                             daemon=True, name=pName)
             p[file_num].start()
             
             print("Starting:\t" + str(p[file_num]))
             process_count += 1
             file_num += 1
+            start_flag = 0
             time.sleep(0.5)
         else:                                                                               # If the maximum number of allowed processes already exists
             for i in range(in_file_count):
                 if (p[i] == None): continue                                                 # If none the processes has already finished and been released or has yet to be initialized
                 try:
-                    q[i].get(timeout=2)                                                     # If the queue is empty it will timeout and raise an exception
+                    tmp = q[i].get(timeout=2)                                               # If the queue is empty it will timeout and raise an exception
+                    if (tmp != 1):
+                        start_flag += 1
+                        continue
                     print("Killing:\t" + str(p[i]))                                 
                     p[i].kill()                                                             # If a process queue returns any value then terminate the process
                     time.sleep(1.0)                                                         # Sleep 1 second after terminating a process so that the .close() function will work
