@@ -175,7 +175,7 @@ void MainWindow::on_startButton_clicked()
     // Command uses the options described by calling Cotact_Monitoring.py -h or in user manual
     // -f option rewuires that the first entry is the desired directory to save output followed by
     // a list of input files seperated by commas.
-    QString cmd = "./Contact_Monitoring.exe -p 2 " + groups +
+    QString cmd = "./Contact_Monitoring.exe -p " + ui->pLimit->text() + " " + groups +
                   " " + timing_string + " " + digital + " -f \"";
     cmd += save_dir;
     pn = files.size();

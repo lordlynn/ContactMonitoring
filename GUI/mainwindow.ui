@@ -150,7 +150,7 @@
               <x>0</x>
               <y>0</y>
               <width>757</width>
-              <height>238</height>
+              <height>237</height>
              </rect>
             </property>
             <layout class="QVBoxLayout" name="verticalLayout_3">
@@ -415,6 +415,23 @@
           <widget class="QPushButton" name="stopButton">
            <property name="text">
             <string>Stop</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="label_12">
+           <property name="text">
+            <string>Process Count:   </string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QSpinBox" name="pLimit">
+           <property name="minimum">
+            <number>2</number>
+           </property>
+           <property name="maximum">
+            <number>10</number>
            </property>
           </widget>
          </item>
