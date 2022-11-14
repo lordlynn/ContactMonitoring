@@ -11,21 +11,8 @@
 //#include "tchar.h"
 
 #include "startdiag.h"
-
-
 #include <fstream>
 
-// Setting up windows process and sdtin/stdout
-#define BUFSIZE 4096
-
-//CHAR chBuf[BUFSIZE];
-//std::mutex mtx;
-
-HANDLE g_hChildStd_IN_Rd = NULL;
-HANDLE g_hChildStd_IN_Wr = NULL;
-HANDLE g_hChildStd_OUT_Rd = NULL;
-HANDLE g_hChildStd_OUT_Wr = NULL;
-HANDLE g_hInputFile = NULL;
 
 bool processFlag = false;
 PROCESS_INFORMATION pi;
@@ -44,13 +31,17 @@ bool checkSave = false;
 
 // Used to calculate progress bar. stores total number of files to convert
 int pn = 0;
-//float *states;
+
+// Signal to kill active process
+bool stop_flag = false;
+
 
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow)
 {
+    freopen("out.txt", "a", stdout);
 
     // Calls the checkThread slot periodically
     QTimer *timer = new QTimer(this);
@@ -62,13 +53,18 @@ MainWindow::MainWindow(QWidget *parent) :
 
 MainWindow::~MainWindow()
 {
+    if (processFlag) {
+        std::string cmd = "taskkill /pid " + std::to_string(pi.dwProcessId) + " /t /f";
+        const char *charCmd = cmd.c_str();
+        WinExec(charCmd, SW_HIDE);
+    }
     delete ui;
+    fclose(stdout);
 }
 
 
 void MainWindow::checkThread()
 {
-//    static CHAR last[BUFSIZE];
     float status = 0.0;
     static int last = 0.0;
 
@@ -79,8 +75,10 @@ void MainWindow::checkThread()
             if (fp.is_open()) {
                 while (std::getline(fp, line)) {
                     for (int i = 0; i < pn; i++) {
-                        status += (1 / (float)pn) * (0.1 * (float)(line[i*3] - '0') + 0.01 * (float)(line[i*3 + 1] - '0'));
-//                        states[i] = 0.1 * (line[i*3] - '0') + 0.01 * (line[i*3 + 1] - '0');
+                        if ((0.1 * (float)(line[i*3] - '0') + 0.01 * (float)(line[i*3 + 1] - '0')) >= 0.99)
+                            status += (1/ (float)pn);
+                        else
+                            status += (1 / (float)pn) * (0.1 * (float)(line[i*3] - '0') + 0.01 * (float)(line[i*3 + 1] - '0'));
                     }
 //                    std::cout << line << std::endl;
                 }
@@ -97,12 +95,19 @@ void MainWindow::checkThread()
         }
 
 
-        if (WaitForSingleObject(pi.hProcess, 0) == 0 || status * 100 >= 99) {
-            ui->startButton->setEnabled(true);
-            TerminateProcess(pi.hProcess, 0);
+        if (status * 100 >= 99 || stop_flag) {
+            std::string cmd = "taskkill /pid " + std::to_string(pi.dwProcessId) + " /t /f";
+            const char *charCmd = cmd.c_str();
+//            std::system(charCmd);
+            WinExec(charCmd, SW_HIDE);
             CloseHandle(pi.hProcess);
+            CloseHandle(pi.hThread);
+            ui->startButton->setEnabled(true);
             processFlag = false;
+            stop_flag = false;
+            ui->stopButton->setEnabled(false);
             ui->progressBar->setValue(100);
+
         }
     }
 
@@ -121,6 +126,7 @@ void MainWindow::on_startButton_clicked()
     QString digital = "";
     QString timing_string = "";
     QString groups = "";
+    QString states = "";
 
     if (analysis_flag) {
         timing_string = "-t \"" + ui->flagTimeIn->text() + ", " + ui->pressDebounceIn->text() +
@@ -128,6 +134,9 @@ void MainWindow::on_startButton_clicked()
     }
     if (sliding_flag == true) {
         timing_string += " -s";
+    }
+    if (zone_flag) {
+        states = "-u \"" + ui->analogZones->text() + ";" + ui->digitalZones->text() + "\"";
     }
 
     // Check that open and save have been completed
@@ -163,19 +172,14 @@ void MainWindow::on_startButton_clicked()
         return;         // If there were errors, do not try to execute the command
     }
 
-
-
-
-
-
     // Command uses the options described by calling Cotact_Monitoring.py -h or in user manual
     // -f option rewuires that the first entry is the desired directory to save output followed by
     // a list of input files seperated by commas.
-    QString cmd = "python ./Contact_Monitoring.py -p 1 " + groups +
+    QString cmd = "./Contact_Monitoring.exe -p 2 " + groups +
                   " " + timing_string + " " + digital + " -f \"";
     cmd += save_dir;
     pn = files.size();
-//    states = (float*) calloc(pn, sizeof(float));
+
     for (int i = 0; i < pn; i++) {
         cmd += "," + files[i];
     }
@@ -190,48 +194,15 @@ void MainWindow::on_startButton_clicked()
     LPWSTR ptr = wexe;                      // Cast QString to LPWSTR for windows.h
 
 
+    std::ofstream ofs("status.txt");
+    for (int i = 0; i < pn-1; i++)
+        ofs << "00,";
+    ofs << "00";
+    ofs.close();
 
-// How to capure input and output
+// How to capure input and output and start windows process
 // https://learn.microsoft.com/en-us/windows/win32/procthread/creating-a-child-process-with-redirected-input-and-output?redirectedfrom=MSDN
 
-//    //-------- Create Pipes for when a child process is started --------
-//    SECURITY_ATTRIBUTES saAttr;
-
-//    // Set the bInheritHandle flag so pipe handles are inherited.
-//    saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
-//    saAttr.bInheritHandle = TRUE;
-//    saAttr.lpSecurityDescriptor = NULL;
-
-//    // Create a pipe for the child process's STDOUT.
-//    if ( ! CreatePipe(&g_hChildStd_OUT_Rd, &g_hChildStd_OUT_Wr, &saAttr, 0) )
-//        ErrorExit(TEXT("StdoutRd CreatePipe"));
-
-//    // Ensure the read handle to the pipe for STDOUT is not inherited.
-//    if ( ! SetHandleInformation(g_hChildStd_OUT_Rd, HANDLE_FLAG_INHERIT, 0) )
-//        ErrorExit(TEXT("Stdout SetHandleInformation"));
-
-//    // Create a pipe for the child process's STDIN.
-//    if (! CreatePipe(&g_hChildStd_IN_Rd, &g_hChildStd_IN_Wr, &saAttr, 0))
-//        ErrorExit(TEXT("Stdin CreatePipe"));
-
-//    // Ensure the write handle to the pipe for STDIN is not inherited.
-//    if ( ! SetHandleInformation(g_hChildStd_IN_Wr, HANDLE_FLAG_INHERIT, 0) )
-//        ErrorExit(TEXT("Stdin SetHandleInformation"));
-
-
-//    STARTUPINFO siStartInfo;
-
-    // Set up members of the STARTUPINFO structure.
-    // This structure specifies the STDIN and STDOUT handles for redirection.
-//    ZeroMemory(&siStartInfo, sizeof(STARTUPINFO));
-//    siStartInfo.cb = sizeof(STARTUPINFO);
-//    siStartInfo.hStdError = g_hChildStd_OUT_Wr;
-//    siStartInfo.hStdOutput = g_hChildStd_OUT_Wr;
-//    siStartInfo.hStdInput = g_hChildStd_IN_Rd;
-//    siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
-
-
-//    PROCESS_INFORMATION pi;   // GLOBAL
     STARTUPINFO si;
     ZeroMemory( &pi, sizeof(pi) );
 
@@ -244,7 +215,7 @@ void MainWindow::on_startButton_clicked()
         ptr,                    // Command line
         NULL,                   // Process handle not inheritable
         NULL,                   // Thread handle not inheritable
-        FALSE,                   // Set handle inheritance to TRUE
+        FALSE,                  // Set handle inheritance to TRUE
         CREATE_NO_WINDOW,       // No creation flags CREATE_NO_WINDOW
         NULL,                   // Use parent's environment block
         NULL,                   // Use parent's starting directory
@@ -253,54 +224,20 @@ void MainWindow::on_startButton_clicked()
     )
     {
         std::cout << "CreateProcess failed" << std::endl;
+        std::cout << "Command:\t";
+        std::cout << exe << std::endl;
         return;
     }
 
+    // Ensure that the stop button and stop flag are reset before starting a new process
+    ui->stopButton->setEnabled(true);
+    stop_flag = false;
+    // Disable the start button when a process is already running
     ui->startButton->setEnabled(false);
-
-
-//    QString tmp = "./pipe.txt";
-//    QByteArray tmp_arr = tmp.toLocal8Bit();
-//    char *tmp_name = tmp_arr.data();
-
-//    wchar_t fn[tmp_arr.length()];
-//    mbstowcs(fn, tmp_name, tmp_arr.length()+1); //Plus null
-//    LPWSTR filename = fn;
-
-//    g_hInputFile = CreateFile(
-//        filename,
-//        GENERIC_READ,
-//        0,
-//        NULL,
-//        OPEN_EXISTING,
-//        FILE_ATTRIBUTE_READONLY,
-//        NULL);
-
-//    if (g_hInputFile == INVALID_HANDLE_VALUE)
-//        ErrorExit(TEXT("CreateFile"));
-
-
-    // Wait until child process exits.
-//    WaitForSingleObject( pi.hProcess, INFINITE );
-
-    // Close process and thread handles.
-
-
-//    CloseHandle( pi.hProcess );
-    CloseHandle( pi.hThread );
-
-
-
-
-//    CloseHandle(g_hChildStd_OUT_Wr);
-//    CloseHandle(g_hChildStd_IN_Rd);
-
-//    auto t = std::async(&MainWindow::ReadFromPipe, this);
-//    std::thread t(&MainWindow::ReadFromPipe, this, chBuf);
-//    t.detach();
     processFlag = true;
-//    auto ret = t.get();
-    std::cout << exe << std::endl;
+
+
+//    std::cout << exe << std::endl;
 
 
 
@@ -316,65 +253,9 @@ void MainWindow::on_startButton_clicked()
 //        ret += buff.data();
 //    }
 //    pclose(p);
-
-
 }
 
-void MainWindow::ReadFromPipe(CHAR buf[]) {
-    // Read output from the child process's pipe for STDOUT
-    // and write to the parent process's pipe for STDOUT.
-    // Stop when there is no more data.
-    DWORD dwRead, dwWritten;
-//    CHAR chBuf[BUFSIZE];
-    BOOL bSuccess = FALSE;
-    HANDLE hParentStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
 
-
-//    int i = 0;
-    for (;;) {
-//        mtx.lock();
-        bSuccess = ReadFile( g_hChildStd_OUT_Rd, buf, BUFSIZE, &dwRead, NULL);
-
-        if( ! bSuccess || dwRead == 0 ) break;
-//        std::cout << i << std::endl;
-//        mtx.unlock();
-//        std::cout << chBuf << std::endl;
-//        bSuccess = WriteFile(hParentStdOut, chBuf,
-//                           dwRead, &dwWritten, NULL);
-//        if (! bSuccess ) return;
-    }
-}
-
-void MainWindow::ErrorExit(PTSTR lpszFunction)
-// Format a readable error message, display a message box,
-// and exit from the application.
-{
-    LPVOID lpMsgBuf;
-    LPVOID lpDisplayBuf;
-    DWORD dw = GetLastError();
-
-    FormatMessage(
-        FORMAT_MESSAGE_ALLOCATE_BUFFER |
-        FORMAT_MESSAGE_FROM_SYSTEM |
-        FORMAT_MESSAGE_IGNORE_INSERTS,
-        NULL,
-        dw,
-        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-        (LPTSTR) &lpMsgBuf,
-        0, NULL );
-
-    lpDisplayBuf = (LPVOID)LocalAlloc(LMEM_ZEROINIT,
-        (lstrlen((LPCTSTR)lpMsgBuf)+lstrlen((LPCTSTR)lpszFunction)+40)*sizeof(TCHAR));
-    StringCchPrintf((LPTSTR)lpDisplayBuf,
-        LocalSize(lpDisplayBuf) / sizeof(TCHAR),
-        TEXT("%s failed with error %d: %s"),
-        lpszFunction, dw, lpMsgBuf);
-    MessageBox(NULL, (LPCTSTR)lpDisplayBuf, TEXT("Error"), MB_OK);
-
-    LocalFree(lpMsgBuf);
-    LocalFree(lpDisplayBuf);
-    ExitProcess(1);
-}
 
 void MainWindow::on_actionExit_triggered()
 {
@@ -458,5 +339,46 @@ void MainWindow::on_isSliding_clicked(bool checked)
 void MainWindow::on_doZones_clicked(bool checked)
 {
     zone_flag = checked;
-    ui->zones->setEnabled(checked);
+    ui->analogZones->setEnabled(checked);
+    ui->digitalZones->setEnabled(checked);
+}
+
+void MainWindow::on_pushButtonConfig_clicked()
+{
+    ui->flagTimeIn->setValue(7);
+    ui->pressDebounceIn->setValue(5);
+    ui->openDebounceIn->setValue(5);
+    ui->timeoutIn->setValue(30);
+
+    ui->groupsIn->setText("10, 11, 12; 20, 21, 22; 30, 31, 32; 40, 41, 42");
+    ui->digitalIn->setText("12, 22, 32, 42");
+
+    ui->analysisCheckBox->setCheckState(Qt::Checked);
+    ui->isSliding->setEnabled(false);
+    ui->isSliding->setCheckState(Qt::Unchecked);
+    on_analysisCheckBox_stateChanged(1);
+    on_isSliding_clicked(0);
+}
+
+void MainWindow::on_slidingConfig_clicked()
+{
+    ui->flagTimeIn->setValue(7);
+    ui->pressDebounceIn->setValue(5);
+    ui->openDebounceIn->setValue(5);
+    ui->timeoutIn->setValue(30);
+
+    ui->groupsIn->setText("10; 20; 30; 40; 50; 60");
+    ui->digitalIn->setText("");
+
+    ui->analysisCheckBox->setCheckState(Qt::Checked);
+    ui->isSliding->setEnabled(true);
+    ui->isSliding->setCheckState(Qt::Checked);
+    on_analysisCheckBox_stateChanged(1);
+    on_isSliding_clicked(1);
+}
+
+void MainWindow::on_stopButton_clicked()
+{
+    stop_flag = true;
+    ui->stopButton->setEnabled(false);
 }

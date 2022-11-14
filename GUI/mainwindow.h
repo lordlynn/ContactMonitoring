@@ -36,6 +36,12 @@ private slots:
 
     void checkThread(void);
 
+    void on_pushButtonConfig_clicked();
+
+    void on_slidingConfig_clicked();
+
+    void on_stopButton_clicked();
+
 private:
     Ui::MainWindow *ui;
     void ReadFromPipe(CHAR buf[]);
