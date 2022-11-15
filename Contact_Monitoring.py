@@ -208,15 +208,18 @@ def convert_data(filename, q, pl):
             q.put(1)                            # if no data was read in from file signal to parent that this process needs to terminate
             time.sleep(0.5)
 
+    
     while (True):
         i += 1
-        if (raw_data[i] == 0xEE):
-            break
-
-    if (i == 11):
-        LEGACY = True
-    else:
+        if (raw_data[i] == 0xEE):               # Requires that the header is correctly identified 3 times to prevent stopping at data with 0xEE
+            if (raw_data[i*2] == 0xEE):
+                if (raw_data[i*3] == 0xEE):
+                    break 
+        
+    if (i != 11):           # Most data now include temperature so if a mistake is made try using non Legacy decoding
         LEGACY = False
+    else:
+        LEGACY = True
     i = 0
     
     # 2 processes should trigger after return from this func - 1/2 * len(raw_data) * x = raw_data
@@ -696,10 +699,7 @@ def main():
     
     # GROUPS = [[10, 11, 12], [20, 21, 22], [30, 31, 32], [40, 41, 42]] 
     # # GROUPS = [[10], [20], [30], [40], [50], [60]]   
-    # FILES = ["./", "C:\\Users\\lynnz\\OneDrive - JSJ Corporation\\Documents\\Contact Monitoring System\\NEW\\ContactMonitoring\\HPB4.bin", 
-    #                "C:\\Users\\lynnz\\OneDrive - JSJ Corporation\\Documents\\Contact Monitoring System\\NEW\\ContactMonitoring\\HPB5.bin",
-    #                "C:\\Users\\lynnz\\OneDrive - JSJ Corporation\\Documents\\Contact Monitoring System\\NEW\\ContactMonitoring\\HPB6.bin",
-    #                "C:\\Users\\lynnz\\OneDrive - JSJ Corporation\\Documents\\Contact Monitoring System\\NEW\\ContactMonitoring\\HPB7.bin"]
+    # FILES = ["./", "D:\\HPB5.bin"]
 
     # # IN_FILENAME = "./TEST"
     # # FILE_TYPE = ".csv"
