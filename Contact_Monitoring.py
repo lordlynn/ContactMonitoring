@@ -1,12 +1,12 @@
-#-----------------------------------------------------------------------
+#---------------------------------------------------------------------------
 # Project: Electrical Contact Monitoring
 # Author: Zac Lynn
-# Date: 4/26/2022
+# Date: 11/15/2022
 # Description: This program decodes the binary output file from the 
 #                   Arduino based data acquisition system. This program
-#                   should be executed from a terminal window so that 
-#                   options may be used (-g is required, -h for help).
-#-----------------------------------------------------------------------
+#                   can be executed from a terminal window (-g is required, 
+#                   -h for help) or by using the GUI program.
+#---------------------------------------------------------------------------
 import numpy as np
 import time
 import multiprocessing as mp
@@ -15,7 +15,6 @@ import getopt
 import sys
 import Contact_Timing as CT
 import logging
-
 
 
 FLOAT_TO_LONG = 10000000                                                                    # Comes from the arduino code. doubles were stored as uint32_t * 10000000 instead of a double
@@ -54,15 +53,12 @@ class StreamToLogger(object):
         pass
 
 
-
-
 #-----------------------------------------------------------------------
-# Function: read_bin()
-# Description: This function reads the entire contents of the 
-#   binary data file and stores it in a numpy array.
+# This function reads the entire contents of the binary data file and 
+#    stores it in a numpy array.
 #
-# param: void
-# return: void                                                          
+# @param  void
+# @return void                                                          
 #-----------------------------------------------------------------------
 def read_bin(filename):
     global raw_data, in_file_count
@@ -77,13 +73,6 @@ def read_bin(filename):
 
     fp.close()
 
-# def group_to_index(g):
-#     ind = 0
-#     for i in range(len(GROUPS)):
-#         for j in range(len(GROUPS[i])):
-#             if (GROUPS[i][j] == g):
-#                 return ind + j   
-#         ind += len(GROUPS[i])
 
 #-----------------------------------------------------------------------
 # Function: read_csv()
@@ -114,7 +103,7 @@ def read_csv(filename):
             
             i = 0
             while (i < len(row)):
-                if (row[i] == ''):                                                          # in between group entries there is an empty cell or ''
+                if (row[i] == ''):                                                          # In between group entries there is an empty cell or ''
                     if (temp == None):
                         i += 1
                         continue
@@ -144,8 +133,8 @@ def read_csv(filename):
                 elif (first[ind] == False):
                     first[ind] = True
                     data[ind].append(temp)
-    pass
 
+                    
 #-----------------------------------------------------------------------
 # Function: count_files()
 # Description: This function checks how many input files exist with the 
@@ -184,13 +173,9 @@ def count_files():
 # return: void
 #-----------------------------------------------------------------------
 def convert_data(filename, q, pl):
-    global raw_data, data #, refined_data
+    global raw_data, data
     data = [[] for groups in GROUPS for contact in groups]
     
-    
-    # data = np.ndarray((len(GROUPS) * len(GROUPS[0])), dtype=np.ndarray)
-    # data.fill(np.array([[]], dtype=np.ndarray))
-
     i = 0    
     temp_temperature = 0                               
     temp_timestamp = 0
@@ -205,18 +190,18 @@ def convert_data(filename, q, pl):
     except Exception as e:
         print("No data was read in from file")
         while True:
-            q.put(1)                            # if no data was read in from file signal to parent that this process needs to terminate
+            q.put(1)                                                                        # If no data was read in from file signal to parent that this process needs to terminate
             time.sleep(0.5)
 
     
     while (True):
         i += 1
-        if (raw_data[i] == 0xEE):               # Requires that the header is correctly identified 3 times to prevent stopping at data with 0xEE
+        if (raw_data[i] == 0xEE):                                                           # Requires that the header is correctly identified 3 times to prevent stopping at data with 0xEE
             if (raw_data[i*2] == 0xEE):
                 if (raw_data[i*3] == 0xEE):
                     break 
         
-    if (i != 11):           # Most data now include temperature so if a mistake is made try using non Legacy decoding
+    if (i != 11):                                                                           # Most data now include temperature so if a mistake is made try using non Legacy decoding
         LEGACY = False
     else:
         LEGACY = True
@@ -229,9 +214,9 @@ def convert_data(filename, q, pl):
     new_process = (2 / pl) * len(raw_data)
 
     while (i < len(raw_data)):                                                              # A while loop is used instead of a for loop so that i can be incremented inside of the loop
-        if (i >= new_process):
+        if (i >= new_process and pl > 2):
             q.put(0)                                                                        # Signal to parent that the next process is ready to start
-            new_process = len(raw_data) + 1000                                              # reset new_process so that it cannot be true again this function call
+            new_process = len(raw_data) + 1000                                              # Reset new_process so that it cannot be true again this function call
         if (raw_data[i] == 0xEE and save_flag):                                             # If a new observation is starting save the last one and get ready for next
             if (i > 0):                                                                     # Don't try to save the temp data on the first iteration. Files always start with "EE" so skip first
                 temp = {"timestamp": temp_timestamp, 
@@ -240,13 +225,12 @@ def convert_data(filename, q, pl):
                         "state": temp_state,
                         "temperature": temp_temperature}
                 
-                if (len(data[indHash[temp['group']]]) > 0 and data[indHash[temp['group']]][-1][1] != temp['timestamp']):             # if the last and current data point have the same timestamp, igrnore one. This was a double write error by arduino
+                if (len(data[indHash[temp['group']]]) > 0 and data[indHash[temp['group']]][-1][1] != temp['timestamp']):             # If the last and current data point have the same timestamp, ignore one. This was a double write error by arduino
                     data[indHash[temp['group']]].append([temp['group'], temp['timestamp'], 
                                  temp['voltage'], temp['state'], temp['temperature']])
                 elif (len(data[indHash[temp['group']]]) == 0):
                     data[indHash[temp['group']]].append([temp['group'], temp['timestamp'], 
                                  temp['voltage'], temp['state'], temp['temperature']])
-
 
             save_flag = False
             i += 1
@@ -274,24 +258,24 @@ def convert_data(filename, q, pl):
                     
                 else:
                     temp_temperature =  int.from_bytes([raw_data[i], raw_data[i+1]],
-                                    "big", signed=True) / 100.0                             # temperature was saves as int16_t multiplied by 10 to preserve decimal vals
+                                    "big", signed=True) / 100.0                             # Temperature was saves as int16_t multiplied by 10 to preserve decimal vals
 
-                    temp_timestamp = (raw_data[i + 2] << 24 |                                   # Timestamp was saved as uint32_t
+                    temp_timestamp = (raw_data[i + 2] << 24 |                               # Timestamp was saved as uint32_t
                                     raw_data[i + 3] << 16 | 
                                     raw_data[i + 4] << 8 | 
                                     raw_data[i + 5]) 
                 
-                    temp_group = raw_data[i + 6]                                                # Group is a uint8_t
+                    temp_group = raw_data[i + 6]                                            # Group is a uint8_t
                 
-                    temp_voltage = (raw_data[i + 7] << 24 |                                     # Voltage was saved as (uint32_t)(double * FLOAT_TO_LONG)
+                    temp_voltage = (raw_data[i + 7] << 24 |                                 # Voltage was saved as (uint32_t)(double * FLOAT_TO_LONG)
                                     raw_data[i + 8] << 16 | 
                                     raw_data[i + 9] << 8 | 
                                     raw_data[i + 10]) / FLOAT_TO_LONG
             
-                    temp_state = raw_data[i + 11]                                                # State is a uint8_t
+                    temp_state = raw_data[i + 11]                                           # State is a uint8_t
                     i += 12
             except IndexError as e:
-                print(str(filename) + ": may be missing data in last row")                  # If this happens tinmestamps may not be alined in the next file
+                print(str(filename) + ": may be missing data in last row")                  # If this happens timestamps may not be alined in the next file
                 break
     try:                                                                                    # Read the last entry if it exists
         temp = {"timestamp": temp_timestamp, 
@@ -300,9 +284,9 @@ def convert_data(filename, q, pl):
                 "state": temp_state,
                 "temperature": temp_temperature}
 
-        if (len(data[indHash[temp['group']]]) > 0 and data[indHash[temp['group']]][-1][1] != temp['timestamp']):             # if the last and current data point have the same timestamp, igrnore one. This was a double write error by arduino
+        if (len(data[indHash[temp['group']]]) > 0 and data[indHash[temp['group']]][-1][1] != temp['timestamp']): 
             data[indHash[temp['group']]].append([temp['group'], temp['timestamp'], 
-                         temp['voltage'], temp['state'], temp['temperature']])
+                         temp['voltage'], temp['state'], temp['temperature']])              # If the last and current data point have the same timestamp, igrnore one. This was a double write error by arduino
         elif (len(data[indHash[temp['group']]]) == 0):
             data[indHash[temp['group']]].append([temp['group'], temp['timestamp'], 
                          temp['voltage'], temp['state'], temp['temperature']])
@@ -311,31 +295,17 @@ def convert_data(filename, q, pl):
         print("At end of decoding: " + str(e))
 
 
+    # If there is still differences in the the number of data points for contacts, remove extras
+    minimum = len(data[0])
+    for contact in data:
+        if (len(contact) < minimum):
+            minimum = len(contact)
 
-#-----------------------------------------------------------------------
-# Function: separate_data()
-# Description: This function uses the refined_data array and 
-#               separates the data into a 2d array by the group 
-#               identifiers
-#
-# param: void
-# return: void
-#-----------------------------------------------------------------------
-def separate_data():
-    global data
-    data = [[] for groups in GROUPS for contact in groups]
-
-    for datum in refined_data:
-        try:
-            if (len(data[indHash[datum['group']]]) > 0 and data[indHash[datum['group']]][-1][1] != datum['timestamp']):             # if the last and current data point have the same timestamp, igrnore one. This was a double write error by arduino
-                data[indHash[datum['group']]].append([datum['group'], datum['timestamp'], 
-                            datum['voltage'], datum['state'], datum['temperature']])
-            elif (len(data[indHash[datum['group']]]) == 0):
-                data[indHash[datum['group']]].append([datum['group'], datum['timestamp'], 
-                            datum['voltage'], datum['state'], datum['temperature']])
-        except Exception as e:
-            print(str(e))
+    for contact in data:
+        while (len(contact) > minimum):     # Delete last data point until contact data lists are same length
+            del contact[-1]
     
+        
 #-----------------------------------------------------------------------
 # Function: update_states()
 # Description: This function updates the states of contacts based on 
@@ -362,7 +332,6 @@ def update_states():
                         datum[3] = i + 1
                         break
                                 
-
 
 #-----------------------------------------------------------------------
 # Function: write_to_csv()
@@ -412,18 +381,22 @@ def write_to_csv(filename):
             csv_writer.writerow(temp)                                               
             
             index += 1
-
-# Not technically a pipe, processes write the status of their operations to this file 
-# so that the GUI program can give a progress bar. Ideally things are just printed to the stdout
-# but I was unable to get the GUI program to read the stdout while the process is still executing
-# FILE FORMAT: two digit int represents percent completion. process completion status are delimited by commas.
+# ----------------------------------------------------------------------
+# Not technically a pipe, processes write the status of their operations 
+#   to this file so that the GUI program can give a progress bar. 
+#   Ideally things are just printed to the stdout but I was unable to 
+#   get the GUI program to read the stdout while the process is still 
+#   executing.
+#
+# FILE FORMAT: two digit int represents percent completion. 
+#              process completion statuses are delimited by commas.
 # 
 # ex: 5 processes with 2 available threads
 #
 # 99,80,30,00,00
-#
+# ----------------------------------------------------------------------
 def write_pipe(pn, completion):
-    offset = pn * 3                # process number times 3 bytes for two digits and the comma
+    offset = pn * 3                                                                         # Process number times 3 bytes for two digits and the comma
     status = str((int)(completion * 10) % 10) + str((int)(completion * 100) % 10)
     if (completion >= 1):
         status = "99"
@@ -438,7 +411,12 @@ def write_pipe(pn, completion):
             print(str(e))
             time.sleep(0.2)
 
-#generates a dictionary with group ids as the key and the data is its index in the data array
+
+# ----------------------------------------------------------------------
+# This function creates a dictionary with group IDs as the keys,
+# and their corresponding indices in 1d arrays as the value. This is 
+# used by read_csv and convert_data functions to organize the data.
+# ----------------------------------------------------------------------
 def gen_hash():
     global GROUPS, indHash
     indHash = {}
@@ -531,7 +509,6 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital,
 
     gen_hash()
 
-
     completion_total = 0
     completion_step = 0
     if (file_type.lower() == ".bin"):
@@ -545,8 +522,7 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital,
     if (flag):
         completion_total += 1
 
-
-    if (file_type.lower() == ".bin"):                                                                # If being read from binary file, need to decode, organize, and export to csv
+    if (file_type.lower() == ".bin"):                                                       # If being read from binary file, need to decode, organize, and export to csv
         read_bin(in_filename)
         print(str(mp.current_process().name) + " : Done reading bin")
     
@@ -555,7 +531,7 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital,
 
         convert_data(in_filename, q, pl)
         if (pl == 2):
-            q.put(0)                                                                                # Signal 0 tells parent to start next process. Next process started after array conversion to efficiently use RAM 
+            q.put(0)                                                                        # Signal 0 tells parent to start next process. Next process started after array conversion to efficiently use RAM 
         data = np.array(data, dtype=np.float32)
 
         print(str(mp.current_process().name) + " : Done converting file")
@@ -563,7 +539,7 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital,
         completion_step += 1
         write_pipe(pn, completion_step / completion_total)
 
-        if (ANALOG_STATES is not None):                                                             # If Analog states have been defined, update the states in the csv file
+        if (ANALOG_STATES is not None):                                                     # If Analog states have been defined, update the states in the csv file
             update_states()
             print(str(mp.current_process().name) + " : Done updating states")
             completion_step += 1
@@ -575,7 +551,7 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital,
         completion_step += 1
         write_pipe(pn, completion_step / completion_total)
     
-    elif (file_type.lower() == ".csv"):                                                             # If reading csv back in no need to generate the same file again
+    elif (file_type.lower() == ".csv"):                                                     # If reading csv back in no need to generate the same file again
         read_csv(in_filename)
         print(str(mp.current_process().name) + " : Done reading csv")
         data = np.array(data, dtype=np.float32)
@@ -583,13 +559,12 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital,
         completion_step += 1
         write_pipe(pn, completion_step / completion_total)
 
-        if (ANALOG_STATES is not None):                                                      # If Analog states have been defined, update the states in the csv file
+        if (ANALOG_STATES is not None):                                                     # If Analog states have been defined, update the states in the csv file
             update_states()
             print(str(mp.current_process().name) + " : Done updating states")
             completion_step += 1
             write_pipe(pn, completion_step / completion_total)
 
-            # data = np.array(data, dtype=np.float32)
             write_to_csv(out_filename)
             print(str(mp.current_process().name) + " : Done writing data to csv")
             completion_step += 1
@@ -621,10 +596,11 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital,
 # return: void
 #-----------------------------------------------------------------------
 def main():
-    global OUT_FILENAME, IN_FILENAME, FILE_TYPE, GROUPS, DIGITAL, FILES, CONTACT_TYPE, ANALOG_STATES, DIGITAL_STATES
+    global OUT_FILENAME, IN_FILENAME, FILE_TYPE, GROUPS, DIGITAL, FILES
+    global CONTACT_TYPE, ANALOG_STATES, DIGITAL_STATES
     global raw_data, refined_data, data, in_file_count, in_file_list
     timing_analysis_flag = False
-    process_limit = 2                                                                       # default limit for how many files can be parallelized at a time. letting limit go to inf slows execution drastically due to memory and cpu usage
+    process_limit = 2                                                                       # Default limit for how many files can be parallelized at a time. letting limit go to inf slows execution drastically due to memory and cpu usage
     timing_args = None
     DIGITAL = []                                                                            # If no digital contacts are used empty list will persist
     
@@ -636,7 +612,7 @@ def main():
     except getopt.GetoptError as err:
         # print help information and exit:
         print("opts: " + str(opts))
-        print("OPTION ERROR: " + str(err))                                                                          # Will print something like "option -a not recognized"
+        print("OPTION ERROR: " + str(err))                                                  # Will print something like "option -a not recognized"
         usage()
 
     for o, a in opts:
@@ -652,7 +628,7 @@ def main():
                       "press_debounce, unpress_debounce, timeout")
                 sys.exit()
             for arg in timing_args:
-                if (arg == None or arg <= 0):                                               # if any of the arguments are invalid raise exception
+                if (arg == None or arg <= 0):                                               # If any of the arguments are invalid raise exception
                     print("Timing analysis parameters must be greater than 0")
                     sys.exit()
         elif o in ("-s", "--sliding"):
@@ -695,11 +671,12 @@ def main():
     if (len(opts) == 0): usage()
 
 
+    # #---------- DEBUG VARIABLES ----------
     # DIGITAL = [12, 22, 32, 42]  #[12, 22] # 32, 42]
     
     # GROUPS = [[10, 11, 12], [20, 21, 22], [30, 31, 32], [40, 41, 42]] 
     # # GROUPS = [[10], [20], [30], [40], [50], [60]]   
-    # FILES = ["./", "D:\\HPB5.bin"]
+    # FILES = ["./", "D:\\HPB28.bin"]
 
     # # IN_FILENAME = "./TEST"
     # # FILE_TYPE = ".csv"
@@ -739,9 +716,9 @@ def main():
     process_count = 0
     start_flag = 1
 
-    while (file_num <= in_file_count + 1):                                                  # While there are still files to convert
-        if (process_count < process_limit and file_num < in_file_count and start_flag >= 1):                    # Start converting the next file if more processes are allowed to be started
-            q[file_num] = mp.Queue()                                                        # Queue is shared and protected memory for multiprocessing to use. the queue will be written to so that the parent thread can terminate child processes
+    while (file_num <= in_file_count + 1):                                                   # While there are still files to convert
+        if (process_count < process_limit and file_num < in_file_count and start_flag >= 1): # Start converting the next file if more processes are allowed to be started
+            q[file_num] = mp.Queue()                                                         # Queue is shared and protected memory for multiprocessing to use. the queue will be written to so that the parent thread can terminate child processes
             
             if (FILES is None):
                 in_filename = IN_FILENAME + str(in_file_list[file_num]) + FILE_TYPE    
@@ -797,7 +774,7 @@ def main():
 
 
 if __name__ == "__main__":
-    mp.freeze_support()             # Needed when compiled to exe
+    mp.freeze_support()                                                                     # Needed when compiled to exe
     print("starting...")
     
     logging.basicConfig(
@@ -807,10 +784,8 @@ if __name__ == "__main__":
             filemode='w'
             )
     log = logging.getLogger('Logger')
-    sys.stdout = StreamToLogger(log, logging.INFO)
+    sys.stdout = StreamToLogger(log, logging.INFO)                                          # Redirect stdout and stderr to log file since GUI runs the process with no terminal window
     sys.stderr = StreamToLogger(log, logging.ERROR)
     print("Logging started")
-
-    
 
     main()
