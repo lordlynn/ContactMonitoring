@@ -81,7 +81,7 @@ def read_bin(filename):
 # param: void
 # return: void                                                          
 #-----------------------------------------------------------------------
-def read_csv(filename):
+def read_csv(filename, q, pl):
     global data
     data = [[] for groups in GROUPS for contact in groups]
 
@@ -89,8 +89,16 @@ def read_csv(filename):
 
     with open(filename, "r") as fp:
         reader = csv.reader(fp)
-        
+        row_count = sum(1 for r in reader)
+        new_process = (2 / pl) * row_count
+        count = 0        
         for row in reader:
+            if (count >= new_process and pl > 2):
+                q.put(0)
+                new_process = row_count + 1000
+            
+            count += 1
+
             if (row[0] == "Group" or row[1] == "Time(ms)" or row[2] == "Voltage(V)"):                                                         # Skip first row which contains header
                 i = 0
                 while (row[i] != ""):
@@ -552,9 +560,12 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital,
         write_pipe(pn, completion_step / completion_total)
     
     elif (file_type.lower() == ".csv"):                                                     # If reading csv back in no need to generate the same file again
-        read_csv(in_filename)
+        read_csv(in_filename, q, pl)
         print(str(mp.current_process().name) + " : Done reading csv")
         data = np.array(data, dtype=np.float32)
+
+        if (pl == 2):
+            q.put(0)
 
         completion_step += 1
         write_pipe(pn, completion_step / completion_total)
