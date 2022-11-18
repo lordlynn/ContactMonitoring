@@ -663,7 +663,7 @@ def main():
             FILES = a.replace("/", "\\").split(",")
         elif o in ("-u", "--update"):
             ANALOG_STATES = list(map(float, (a.split(";")[0].split(","))))
-            if (len(a.split(";")) >= 2):
+            if (len(a.split(";")[1]) > 0):
                 DIGITAL_STATES = list(map(float, (a.split(";")[1].split(","))))
         else:
             assert False, "unhandled option"
