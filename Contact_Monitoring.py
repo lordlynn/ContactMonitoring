@@ -92,6 +92,7 @@ def read_csv(filename, q, pl):
         row_count = sum(1 for r in reader)
         new_process = (2 / pl) * row_count
         count = 0        
+        fp.seek(0)
         for row in reader:
             if (count >= new_process and pl > 2):
                 q.put(0)
@@ -683,21 +684,21 @@ def main():
 
 
     # #---------- DEBUG VARIABLES ----------
-    # DIGITAL = [12, 22, 32, 42]  #[12, 22] # 32, 42]
+    # # DIGITAL = [12, 22, 32, 42]  #[12, 22] # 32, 42]
     
-    # GROUPS = [[10, 11, 12], [20, 21, 22], [30, 31, 32], [40, 41, 42]] 
-    # # GROUPS = [[10], [20], [30], [40], [50], [60]]   
-    # FILES = ["./", "D:\\HPB28.bin"]
+    # # GROUPS = [[10, 11, 12], [20, 21, 22], [30, 31, 32], [40, 41, 42]] 
+    # GROUPS = [[10], [20], [30], [40], [50], [60]]   
+    # FILES = ["./", "D:\\results\\cycles0-50k\\TEST8.csv", "D:\\results\\cycles0-50k\\TEST9.csv"]
 
     # # IN_FILENAME = "./TEST"
     # # FILE_TYPE = ".csv"
     # # OUT_FILENAME = "./test"
     # timing_analysis_flag = True
-    # # CONTACT_TYPE = "SL"
+    # CONTACT_TYPE = "SL"
     # timing_args = [7, 5, 5, 30]
 
     # # DEFAULT PUSHBUTTON STATES. ONLY USED FOR REASSIGNING STATES. if left uninitialized, state reassignment is disabled
-    # # ANALOG_STATES = [1.000, 1.300, 2.850, 3.150, 5.400, 5.900, 7.150, 7.550, 12.000, 13.500]
+    # ANALOG_STATES = [1.000, 1.300, 2.850, 3.150, 5.400, 5.900, 7.150, 7.550, 12.000, 13.500]
     # # DIGITAL_STATES = [0.000, 1.500, 3.500, 5.000]
 
  
