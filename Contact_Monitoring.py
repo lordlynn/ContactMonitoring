@@ -412,11 +412,14 @@ def write_to_csv(filename):
 #
 # 99,80,30,00,00
 # ----------------------------------------------------------------------
-def write_pipe(pn, completion):
+def write_pipe(pn, completion, flag):
     offset = pn * 3                                                                         # Process number times 3 bytes for two digits and the comma
     status = str((int)(completion * 10) % 10) + str((int)(completion * 100) % 10)
     if (completion >= 1):
-        status = "99"
+        if (flag):
+            status = "98"
+        else:
+            status = "99"
 
     while True:
         try:
@@ -506,7 +509,8 @@ def usage():
 # return: void
 #-----------------------------------------------------------------------
 def convert_file(in_filename, out_filename, groups, q, flag, args, digital, 
-                 file_type, analog_states, digital_states, contact_type, pn, pl):
+                 file_type, analog_states, digital_states, contact_type, 
+                 pn, pl, summary):
     
     global GROUPS, DIGITAL, ANALOG_STATES, DIGITAL_STATES, data
     ANALOG_STATES = analog_states
@@ -544,7 +548,7 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital,
         print(str(mp.current_process().name) + " : Done reading bin")
     
         completion_step += 1
-        write_pipe(pn, completion_step / completion_total)
+        write_pipe(pn, completion_step / completion_total, summary)
 
         convert_data(in_filename, q, pl)
         if (pl == 2):
@@ -554,19 +558,19 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital,
         print(str(mp.current_process().name) + " : Done converting file")
     
         completion_step += 1
-        write_pipe(pn, completion_step / completion_total)
+        write_pipe(pn, completion_step / completion_total, summary)
 
         if (ANALOG_STATES is not None):                                                     # If Analog states have been defined, update the states in the csv file
             update_states()
             print(str(mp.current_process().name) + " : Done updating states")
             completion_step += 1
-            write_pipe(pn, completion_step / completion_total)
+            write_pipe(pn, completion_step / completion_total, summary)
 
         write_to_csv(out_filename)    
         print(str(mp.current_process().name) + " : Done writing data to csv")
 
         completion_step += 1
-        write_pipe(pn, completion_step / completion_total)
+        write_pipe(pn, completion_step / completion_total, summary)
     
     elif (file_type.lower() == ".csv"):                                                     # If reading csv back in no need to generate the same file again
         read_csv(in_filename, q, pl)
@@ -577,18 +581,18 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital,
             q.put(0)
 
         completion_step += 1
-        write_pipe(pn, completion_step / completion_total)
+        write_pipe(pn, completion_step / completion_total, summary)
 
         if (ANALOG_STATES is not None):                                                     # If Analog states have been defined, update the states in the csv file
             update_states()
             print(str(mp.current_process().name) + " : Done updating states")
             completion_step += 1
-            write_pipe(pn, completion_step / completion_total)
+            write_pipe(pn, completion_step / completion_total, summary)
 
             write_to_csv(out_filename)
             print(str(mp.current_process().name) + " : Done writing data to csv")
             completion_step += 1
-            write_pipe(pn, completion_step / completion_total)
+            write_pipe(pn, completion_step / completion_total, summary)
 
     if (contact_type == "PB" and flag): 
         ct = CT.Contact_Timing(GROUPS, DIGITAL, data)
@@ -598,7 +602,7 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital,
         ct.sliding_contacts(out_filename, args[0], args[1])
 
     completion_step += 1
-    write_pipe(pn, completion_step / completion_total)
+    write_pipe(pn, completion_step / completion_total, summary)
     
     print(str(mp.current_process().name) + " : Done processing, entering loop")
     
@@ -698,17 +702,18 @@ def main():
     
     # # GROUPS = [[10, 11, 12], [20, 21, 22], [30, 31, 32], [40, 41, 42]] 
     # GROUPS = [[10], [20], [30], [40], [50], [60]]   
-    # FILES = ["./", "D:\\results\\cycles0-50k\\TEST8.csv", "D:\\results\\cycles0-50k\\TEST9.csv"]
+    # FILES = ["D:\\results\\cycles0-50k\\", "D:\\results\\cycles0-50k\\TEST1.csv"]
 
     # # IN_FILENAME = "./TEST"
     # # FILE_TYPE = ".csv"
     # # OUT_FILENAME = "./test"
     # timing_analysis_flag = True
+    # SUMMARY_FLAG = True
     # CONTACT_TYPE = "SL"
     # timing_args = [7, 5, 5, 30]
 
     # # DEFAULT PUSHBUTTON STATES. ONLY USED FOR REASSIGNING STATES. if left uninitialized, state reassignment is disabled
-    # ANALOG_STATES = [1.000, 1.300, 2.850, 3.150, 5.400, 5.900, 7.150, 7.550, 12.000, 13.500]
+    # # ANALOG_STATES = [1.000, 1.300, 2.850, 3.150, 5.400, 5.900, 7.150, 7.550, 12.000, 13.500]
     # # DIGITAL_STATES = [0.000, 1.500, 3.500, 5.000]
 
  
@@ -740,6 +745,7 @@ def main():
     q = [None] * in_file_count
     process_count = 0
     start_flag = 1
+
     try:
         while (file_num <= in_file_count + 1):                                                   # While there are still files to convert
             if (process_count < process_limit and file_num < in_file_count and start_flag >= 1): # Start converting the next file if more processes are allowed to be started
@@ -758,8 +764,8 @@ def main():
                 p[file_num] = mp.Process(target=convert_file,                                   # Create a new process to convert an input file
                                 args=(in_filename, out_filename, GROUPS, q[file_num], 
                                 timing_analysis_flag, timing_args, DIGITAL, FILE_TYPE, 
-                                ANALOG_STATES, DIGITAL_STATES, CONTACT_TYPE, file_num, process_limit),
-                                daemon=True, name=pName)
+                                ANALOG_STATES, DIGITAL_STATES, CONTACT_TYPE, file_num, 
+                                process_limit, SUMMARY_FLAG), daemon=True, name=pName)
                 p[file_num].start()
                 
                 print("Starting:\t" + str(p[file_num]))
@@ -806,6 +812,10 @@ def main():
             summary = s.compile_summary_pb(files)
             s.write_to_csv_pb("summary.csv", summary)
         print("Summary created")
+    
+    for i in range(in_file_count):
+        write_pipe(i, 1, False)
+
     print("\nEND\n")
     sys.exit()
 
