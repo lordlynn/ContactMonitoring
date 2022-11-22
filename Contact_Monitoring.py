@@ -7,14 +7,16 @@
 #                   can be executed from a terminal window (-g is required, 
 #                   -h for help) or by using the GUI program.
 #---------------------------------------------------------------------------
+import Contact_Monitoring_Summary as CMS
+import Contact_Timing as CT
+import multiprocessing as mp
 import numpy as np
 import time
-import multiprocessing as mp
 import csv
 import getopt
 import sys
-import Contact_Timing as CT
 import logging
+
 
 
 FLOAT_TO_LONG = 10000000                                                                    # Comes from the arduino code. doubles were stored as uint32_t * 10000000 instead of a double
@@ -27,7 +29,7 @@ ANALOG_STATES = None                                                            
 DIGITAL_STATES = None                                                                       # Stores the voltage ranges for digital contact states. Used to update the state data 
 FILES = None                                                                                # Stores a list of filenames to use as input files. This option was added for use with the GUI
 CONTACT_TYPE = "PB"
-
+SUMMARY_FLAG = False                                                                        # If true, reads summary files from the save directory to produce a single summary file
 raw_data = None                                                                             # Byte array read directly from BIN file
 refined_data = []                                                                           # Stores the data as a 1D list of dictionaries  
 data = []                                                                                   # Stores the data separated by contact ID 
@@ -203,13 +205,19 @@ def convert_data(filename, q, pl):
             time.sleep(0.5)
 
     
-    while (True):
+    while (i < len(raw_data)):
         i += 1
         if (raw_data[i] == 0xEE):                                                           # Requires that the header is correctly identified 3 times to prevent stopping at data with 0xEE
             if (raw_data[i*2] == 0xEE):
                 if (raw_data[i*3] == 0xEE):
                     break 
-        
+
+    if (i == len(raw_data)):
+        print("Failed to find first 3 data delimiters 0xEE")
+        while True:
+            q.put(1)
+            time.sleep(0.5)
+
     if (i != 11):                                                                           # Most data now include temperature so if a mistake is made try using non Legacy decoding
         LEGACY = False
     else:
@@ -609,7 +617,7 @@ def convert_file(in_filename, out_filename, groups, q, flag, args, digital,
 #-----------------------------------------------------------------------
 def main():
     global OUT_FILENAME, IN_FILENAME, FILE_TYPE, GROUPS, DIGITAL, FILES
-    global CONTACT_TYPE, ANALOG_STATES, DIGITAL_STATES
+    global CONTACT_TYPE, ANALOG_STATES, DIGITAL_STATES, SUMMARY_FLAG
     global raw_data, refined_data, data, in_file_count, in_file_list
     timing_analysis_flag = False
     process_limit = 2                                                                       # Default limit for how many files can be parallelized at a time. letting limit go to inf slows execution drastically due to memory and cpu usage
@@ -617,7 +625,7 @@ def main():
     DIGITAL = []                                                                            # If no digital contacts are used empty list will persist
     
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "ho:i:g:p:t:d:f:su:", 
+        opts, args = getopt.getopt(sys.argv[1:], "ho:i:g:p:t:d:f:su:a", 
                                    ["help", "output=", "input=", "groups=", 
                                     "pLimit=", "time=", "digital=", "files=", 
                                     "sliding=", "update="])
@@ -677,6 +685,8 @@ def main():
             ANALOG_STATES = list(map(float, (a.split(";")[0].split(","))))
             if (len(a.split(";")[1]) > 0):
                 DIGITAL_STATES = list(map(float, (a.split(";")[1].split(","))))
+        elif o in ("-a"):
+            SUMMARY_FLAG = True
         else:
             assert False, "unhandled option"
 
@@ -708,6 +718,9 @@ def main():
 
     if (FILES is None):
         count_files()
+        if (SUMMARY_FLAG):
+            SUMMARY_FLAG = False
+            print("To use option -a summary, please use -f to define the directory to look for summary files in.")
     else:
         OUT_FILENAME = FILES[0] + "\\"
         in_file_count = len(FILES)-1
@@ -727,60 +740,72 @@ def main():
     q = [None] * in_file_count
     process_count = 0
     start_flag = 1
-
-    while (file_num <= in_file_count + 1):                                                   # While there are still files to convert
-        if (process_count < process_limit and file_num < in_file_count and start_flag >= 1): # Start converting the next file if more processes are allowed to be started
-            q[file_num] = mp.Queue()                                                         # Queue is shared and protected memory for multiprocessing to use. the queue will be written to so that the parent thread can terminate child processes
-            
-            if (FILES is None):
-                in_filename = IN_FILENAME + str(in_file_list[file_num]) + FILE_TYPE    
-                out_filename = OUT_FILENAME + str(in_file_list[file_num]) + ".csv"
-                pName = str(in_file_list[file_num])
-            else:
-                in_filename = in_file_list[file_num]
-                FILE_TYPE = "." + in_filename.rsplit(".", 1)[1]
-                out_filename = OUT_FILENAME + (in_file_list[file_num].rsplit("\\", 1))[1].split(".")[0] + ".csv"
-                pName = (in_file_list[file_num].rsplit("\\", 1))[1].split(".")[0]
-
-            p[file_num] = mp.Process(target=convert_file,                                   # Create a new process to convert an input file
-                             args=(in_filename, out_filename, GROUPS, q[file_num], 
-                             timing_analysis_flag, timing_args, DIGITAL, FILE_TYPE, 
-                             ANALOG_STATES, DIGITAL_STATES, CONTACT_TYPE, file_num, process_limit),
-                             daemon=True, name=pName)
-            p[file_num].start()
-            
-            print("Starting:\t" + str(p[file_num]))
-            process_count += 1
-            file_num += 1
-            start_flag = 0
-            time.sleep(0.5)
-        else:                                                                               # If the maximum number of allowed processes already exists
-            for i in range(in_file_count):
-                if (p[i] == None): continue                                                 # If none the processes has already finished and been released or has yet to be initialized
-                try:
-                    tmp = q[i].get(timeout=2)                                               # If the queue is empty it will timeout and raise an exception
-                    if (tmp != 1):
-                        start_flag += 1
-                        continue
-                    print("Killing:\t" + str(p[i]))                                 
-                    p[i].kill()                                                             # If a process queue returns any value then terminate the process
-                    time.sleep(1.0)                                                         # Sleep 1 second after terminating a process so that the .close() function will work
-                except Exception as e: 
-                    continue                                                                # If the queue times out then the process has not finished yet
+    try:
+        while (file_num <= in_file_count + 1):                                                   # While there are still files to convert
+            if (process_count < process_limit and file_num < in_file_count and start_flag >= 1): # Start converting the next file if more processes are allowed to be started
+                q[file_num] = mp.Queue()                                                         # Queue is shared and protected memory for multiprocessing to use. the queue will be written to so that the parent thread can terminate child processes
                 
-                try:
-                    p[i].close()                                                            # If a process is terminated call .close() to free process resources
-                    del p[i]
-                    del q[i]
-                    p.append(None)                                                          # None is append to the end of the list so that size of the list does not change during a for loop
-                    q.append(None)
+                if (FILES is None):
+                    in_filename = IN_FILENAME + str(in_file_list[file_num]) + FILE_TYPE    
+                    out_filename = OUT_FILENAME + str(in_file_list[file_num]) + ".csv"
+                    pName = str(in_file_list[file_num])
+                else:
+                    in_filename = in_file_list[file_num]
+                    FILE_TYPE = "." + in_filename.rsplit(".", 1)[1]
+                    out_filename = OUT_FILENAME + (in_file_list[file_num].rsplit("\\", 1))[1].split(".")[0] + ".csv"
+                    pName = (in_file_list[file_num].rsplit("\\", 1))[1].split(".")[0]
+
+                p[file_num] = mp.Process(target=convert_file,                                   # Create a new process to convert an input file
+                                args=(in_filename, out_filename, GROUPS, q[file_num], 
+                                timing_analysis_flag, timing_args, DIGITAL, FILE_TYPE, 
+                                ANALOG_STATES, DIGITAL_STATES, CONTACT_TYPE, file_num, process_limit),
+                                daemon=True, name=pName)
+                p[file_num].start()
+                
+                print("Starting:\t" + str(p[file_num]))
+                process_count += 1
+                file_num += 1
+                start_flag = 0
+                time.sleep(0.5)
+            else:                                                                               # If the maximum number of allowed processes already exists
+                for i in range(in_file_count):
+                    if (p[i] == None): continue                                                 # If none the processes has already finished and been released or has yet to be initialized
+                    try:
+                        tmp = q[i].get(timeout=2)                                               # If the queue is empty it will timeout and raise an exception
+                        if (tmp != 1):
+                            start_flag += 1
+                            continue
+                        print("Killing:\t" + str(p[i]))                                 
+                        p[i].kill()                                                             # If a process queue returns any value then terminate the process
+                        time.sleep(1.0)                                                         # Sleep 1 second after terminating a process so that the .close() function will work
+                    except Exception as e: 
+                        continue                                                                # If the queue times out then the process has not finished yet
                     
-                except:
-                    print("Failed to release process")
-                process_count -= 1
-            if (file_num == in_file_count and process_count == 0):                          # If all files have been converted an all child process terminated, then break out of main loop and end program
-                break
-          
+                    try:
+                        p[i].close()                                                            # If a process is terminated call .close() to free process resources
+                        del p[i]
+                        del q[i]
+                        p.append(None)                                                          # None is append to the end of the list so that size of the list does not change during a for loop
+                        q.append(None)
+                        
+                    except:
+                        print("Failed to release process")
+                    process_count -= 1
+                if (file_num == in_file_count and process_count == 0):                          # If all files have been converted an all child process terminated, then break out of main loop and end program
+                    break
+    except Exception as e:                                                                      # try catch used so that if an error occurs the parent process can exit hopefully terminating children processes
+        print(str(e))
+
+    if (SUMMARY_FLAG):
+        s = CMS.summarize(OUT_FILENAME)
+        files = s.enumerate_summary_files()
+        if (CONTACT_TYPE == "SL"):
+            summary = s.compile_summary_sl(files)
+            s.write_to_csv_sl("summary.csv", summary)
+        else:
+            summary = s.compile_summary_pb(files)
+            s.write_to_csv_pb("summary.csv", summary)
+        print("Summary created")
     print("\nEND\n")
     sys.exit()
 
