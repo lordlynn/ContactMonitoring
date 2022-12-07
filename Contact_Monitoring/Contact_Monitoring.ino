@@ -167,7 +167,7 @@ void read_ADC(void) {
 
   // Voltage to temp eq: 100C/V * (Vadc - 500mv) = degrees C
   // The value is then multiplied by 100 once again so that the value can be saved as an int
-  tmp = 100 * 100 * ((analogRead(TMP_PIN) / 1023.0 * V_SCALE) - 0.5);             // Read temp sensor voltage and convert to degrees C
+  tmp = 100 * 100 * ((analogRead(TMP_PIN) / 1023.0 * 5.0) - 0.5);            // Read temp sensor voltage and convert to degrees C
        
   
   for (index = 0; index < writer.INCH; index++) {
